@@ -52,7 +52,7 @@ class MostCommonByUserPolicy(object):
             hotel_booking = defaultdict(int)
             for h in book_hotel:
                 hotel_booking[h] += 1
-            self.policy_map[x] = np.array(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1])))
+            self.policy_map[x] = np.array(list(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1]))))
 
 
 class RandomSortPolicy(object):
@@ -63,6 +63,7 @@ class RandomSortPolicy(object):
 
     def recommend(self, x):
         return np.random.choice(self.n_hotels, self.n_reco, replace=False)
+
 
 class FixedPolicy(object):
     def __init__(self, fixed_reco):

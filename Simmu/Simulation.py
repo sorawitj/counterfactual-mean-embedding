@@ -19,7 +19,7 @@ def estimate(estimator, policy, simData):
 
 def getSimVal(policy, env, users, N=10000):
     sim = list()
-    for i in xrange(N):
+    for i in range(N):
         sim.append(simmulate(policy, env, users))
     return sum([d['r'] for d in sim])
 
@@ -50,13 +50,13 @@ if __name__ == "__main__":
     policy_prob = dict([(u, softmax(-s * 1.25)) for (u, s) in user_score])
     user_prob = dict([(u, softmax(s)) for (u, s) in user_score])
 
-    for i in xrange(50):
+    for i in range(50):
 
         nullPolicy = PriorPolicy(policy_prob, n_reco=n_reco, n_hotels=n_hotel, greedy=False)
         env = Environment(user_prob)
 
         simData = list()
-        for i in xrange(n):
+        for i in range(n):
             simData.append(simmulate(nullPolicy, env, users))
 
         slateEstimator = SlateEstimator(n_reco, nullPolicy)
@@ -75,9 +75,9 @@ if __name__ == "__main__":
         slateUser2 = estimate(slateEstimator2, userPolicy, simData)
         actUser = getSimVal(userPolicy, env, users, n)
 
-        print "bhrUser: %s", bhrUser
-        print "slateUser: %s", slateUser
-        print "actUser: %s", actUser
+        print("bhrUser: %s" % bhrUser)
+        print("slateUser: %s" % slateUser)
+        print("actUser: %s" % actUser)
 
         dictVal = {"bhr_most_common": bhrMostCommon,
                    "bhr_user_pref": bhrUser,
@@ -88,4 +88,4 @@ if __name__ == "__main__":
                    "act_most_common": actMostCommon,
                    "act_user_pref": actUser}
         resDf = resDf.append(dictVal, ignore_index=True)
-        print resDf
+        print(resDf)

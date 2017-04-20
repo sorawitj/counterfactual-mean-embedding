@@ -88,6 +88,6 @@ ranks = [mf_world.get_diversified_rank(0.4), mf_world.get_model_rank(), mf_world
 for r in ranks:
     print(mf_world.evaluate_rank(r))
 
-from scipy.misc import comb,factorial
-s = 3
-comb(30, 8) * factorial(8)
+# from scipy.misc import comb,factorial
+# s = 3
+# comb(30, 8) * factorial(8)

@@ -22,12 +22,12 @@ def simmulate(policy, env, users):
 def estimate(estimator, policy, simData):
     return sum(
         [estimator.estimate(d['x'], np.array(d['y']), d['r'], policy.recommend(d['x'])) for d in
-            simData])
+         simData])
 
 
 def getSimVal(policy, env, users, N=10000):
     sim = list()
-    for i in xrange(N):
+    for i in range(N):
         sim.append(simmulate(policy, env, users))
     return sum([d['r'] for d in sim])
 
@@ -42,21 +42,20 @@ if __name__ == "__main__":
     n = 5000
     n_hotel = n_hotel_per_group * 2
     users = ["A"]
-    d_policy = {"A": np.array([0,7,1])}
-    m_policy = {"A": np.array([0,1,2])}
+    d_policy = {"A": np.array([0, 7, 1])}
+    m_policy = {"A": np.array([0, 1, 2])}
 
     res = []
-    for i in xrange(100):
+    for i in range(100):
         null_policy_prob = np.repeat([2.0, 1.0], n_hotel_per_group)
         null_policy_prob /= null_policy_prob.sum()
 
-
         nullPolicy = PriorPolicy({"A": null_policy_prob}, n_reco=n_reco,
-            n_hotels=n_hotel, greedy=False)
+                                 n_hotels=n_hotel, greedy=False)
 
         env = BinaryDiversEnvironment(0.5, 0.25, (0.6, 0.4), n_hotel_per_group)
 
-        simData = [simmulate(nullPolicy, env, ["A"]) for _ in xrange(n)]
+        simData = [simmulate(nullPolicy, env, ["A"]) for _ in range(n)]
 
         slateEstimator = SlateEstimator(n_reco, nullPolicy)
         slateEstimator2 = SlateEstimator2(n_reco, nullPolicy)
@@ -73,28 +72,26 @@ if __name__ == "__main__":
         slateUser2 = estimate(slateEstimator2, dPolicy, simData)
         actUser = getSimVal(dPolicy, env, users, n)
 
-        print i
+        print(i)
 
         dictVal = {"most_common_bhr": bhrMostCommon,
-            "diver_bhr": bhrUser,
-            "most_common_slate": slateMostCommon,
-            "most_common_slate2": slateMostCommon2,
-            "diver_slate": slateUser,
-            "diver_slate2": slateUser2,
-            "most_common_act": actMostCommon,
-            "diver_act": actUser}
+                   "diver_bhr": bhrUser,
+                   "most_common_slate": slateMostCommon,
+                   "most_common_slate2": slateMostCommon2,
+                   "diver_slate": slateUser,
+                   "diver_slate2": slateUser2,
+                   "most_common_act": actMostCommon,
+                   "diver_act": actUser}
 
-        print pd.Series(dictVal).sort_index()
+        print(pd.Series(dictVal).sort_index())
         res.append(dictVal)
-
-
 
 resDf = pd.DataFrame(res)
 
 resDf.groupby(np.ones(len(resDf))).agg(
     lambda x: dict(
-        mean = np.mean(x),
-        stdErr = np.std(x)/np.sqrt(x.count())
+        mean=np.mean(x),
+        stdErr=np.std(x) / np.sqrt(x.count())
     )
 )
 res1 = res
