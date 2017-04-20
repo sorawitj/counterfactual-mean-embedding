@@ -1,14 +1,44 @@
 import numpy as np
 import itertools
 import scipy.linalg
+import pandas as pd
 
 
 class DirectEstimator(object):
-    def __init__(self, n_reco):
-        pass
+    def __init__(self, n_reco, new_policy, simData):
+        self.simData = simData
+        self.new_policy = new_policy
+        self.n_reco = n_reco
+        self.new_probDist = dict([(x, self.get_probDist(x, self.new_policy)) for x in self.new_policy.prob])
+        self.expectedVal = self.getExpectedVal()
+
+    def get_probDist(self, x, policy):
+        numAllowedDocs = policy.n_hotels
+        currentDistribution = policy.prob[x]
+        validDocs = self.n_reco
+
+        slates = np.zeros(tuple([numAllowedDocs for p in range(validDocs)]),
+                          dtype=np.float32)
+        for x in itertools.permutations(range(numAllowedDocs), validDocs):
+            currentDenom = currentDistribution.sum(dtype=np.longdouble)
+            slateProb = 1.0
+            for p in range(validDocs):
+                slateProb *= (currentDistribution[x[p]] / currentDenom)
+                currentDenom -= currentDistribution[x[p]]
+                if currentDenom <= 0:
+                    break
+            slates[tuple(x)] = slateProb
+        return slates
+
+    def getExpectedVal(self):
+        return pd.DataFrame(self.simData).groupby(['x', 'y'])['r'].mean().to_dict()
 
     def estimate(self, x, explored_ranking, explored_value, new_ranking):
-        return explored_value
+        expVal = self.expectedVal.get((x, tuple(new_ranking)))
+        if expVal is not None:
+            return expVal
+        else:
+            return 0.0
 
 
 class IPSEstimator(object):

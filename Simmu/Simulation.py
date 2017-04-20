@@ -40,16 +40,17 @@ if __name__ == "__main__":
                                   "actualVal"
                                   ])
 
+    null_score = [(u, np.random.normal(0, 1, n_hotel)) for u in users]
     user_score = [(u, np.random.normal(0, 1, n_hotel)) for u in users]
     # user_score = [(u, np.repeat([1.0], [n_hotel])) for u in users]
     # policy_prob = dict([(u, softmax(-s * 1.25)) for (u, s) in user_score])
-    policy_prob = dict([(u, softmax(-s * 1.25)) for (u, s) in user_score])
+    policy_prob = dict([(u, softmax(s * 1.25)) for (u, s) in null_score])
     user_prob = dict([(u, softmax(s)) for (u, s) in user_score])
 
     for i in range(50):
 
         nullPolicy = PriorPolicy(policy_prob, n_reco=n_reco, n_hotels=n_hotel, greedy=False)
-        newPolicy = PriorPolicy(user_prob, n_hotel, n_reco, greedy=True)
+        newPolicy = PriorPolicy(user_prob, n_hotel, n_reco, greedy=False)
 
         env = Environment(user_prob)
 
@@ -57,7 +58,7 @@ if __name__ == "__main__":
         for i in range(n):
             simData.append(simmulate(nullPolicy, env, users))
 
-        directEstimator = DirectEstimator(n_reco)
+        directEstimator = DirectEstimator(n_reco, newPolicy, simData)
         ipsEstimator = IPSEstimator(n_reco, nullPolicy, newPolicy)
         slateEstimator2 = SlateEstimator2(n_reco, nullPolicy)
 
