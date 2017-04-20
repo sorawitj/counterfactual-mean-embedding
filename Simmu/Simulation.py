@@ -40,33 +40,33 @@ if __name__ == "__main__":
                                   "actualVal"
                                   ])
 
-    null_score = [(u, np.random.normal(0, 1, n_hotel)) for u in users]
+    # null_score = [(u, np.random.normal(0, 1, n_hotel)) for u in users]
     user_score = [(u, np.random.normal(0, 1, n_hotel)) for u in users]
     # user_score = [(u, np.repeat([1.0], [n_hotel])) for u in users]
     # policy_prob = dict([(u, softmax(-s * 1.25)) for (u, s) in user_score])
-    policy_prob = dict([(u, softmax(s * 1.25)) for (u, s) in null_score])
+    policy_prob = dict([(u, softmax(-s)) for (u, s) in user_score])
     user_prob = dict([(u, softmax(s)) for (u, s) in user_score])
 
-    for i in range(50):
+    for i in range(20):
 
-        nullPolicy = PriorPolicy(policy_prob, n_reco=n_reco, n_hotels=n_hotel, greedy=False)
-        newPolicy = PriorPolicy(user_prob, n_hotel, n_reco, greedy=False)
+        null_policy = PriorPolicy(policy_prob, n_reco=n_reco, n_hotels=n_hotel, greedy=False)
+        new_policy = PriorPolicy(user_prob, n_hotel, n_reco, greedy=False)
 
         env = Environment(user_prob)
 
         simData = list()
         for i in range(n):
-            simData.append(simmulate(nullPolicy, env, users))
+            simData.append(simmulate(null_policy, env, users))
 
-        directEstimator = DirectEstimator(n_reco, newPolicy, simData)
-        ipsEstimator = IPSEstimator(n_reco, nullPolicy, newPolicy)
-        slateEstimator2 = SlateEstimator2(n_reco, nullPolicy)
+        directEstimator = DirectEstimator(n_reco, new_policy, simData)
+        ipsEstimator = IPSEstimator(n_reco, null_policy, new_policy)
+        slateEstimator2 = SlateEstimator2(n_reco, null_policy)
 
-        directVal = estimate(directEstimator, newPolicy, simData)
-        ipsVal = estimate(ipsEstimator, newPolicy, simData)
-        slateVal = estimate(slateEstimator2, newPolicy, simData)
+        directVal = estimate(directEstimator, new_policy, simData)
+        ipsVal = estimate(ipsEstimator, new_policy, simData)
+        slateVal = estimate(slateEstimator2, new_policy, simData)
 
-        actualVal = getSimVal(newPolicy, env, users, n)
+        actualVal = getSimVal(new_policy, env, users, n)
 
         print("directVal: %s" % directVal)
         print("ipsVal: %s" % ipsVal)
@@ -79,3 +79,5 @@ if __name__ == "__main__":
                    "actualVal": actualVal}
         resDf = resDf.append(dictVal, ignore_index=True)
         print(resDf)
+
+    resDf.plot.line(use_index=True)

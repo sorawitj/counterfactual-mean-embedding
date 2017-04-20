@@ -76,15 +76,15 @@ class IPSEstimator(object):
 
 
 class SlateEstimator(object):
-    def __init__(self, n_reco, policy):
-        self.policy = policy
+    def __init__(self, n_reco, null_policy):
+        self.null_policy = null_policy
         self.n_reco = n_reco
 
-        self.slates = dict([(x, self.get_slate(x)) for x in self.policy.prob])
+        self.slates = dict([(x, self.get_slate(x)) for x in self.null_policy.prob])
 
     def get_slate(self, x):
-        numAllowedDocs = self.policy.n_hotels
-        currentDistribution = self.policy.prob[x]
+        numAllowedDocs = self.null_policy.n_hotels
+        currentDistribution = self.null_policy.prob[x]
         validDocs = self.n_reco
 
         slates = np.zeros(tuple([numAllowedDocs for p in range(validDocs)]),
@@ -102,7 +102,7 @@ class SlateEstimator(object):
 
     def gammaInverse(self, x):
 
-        numAllowedDocs = self.policy.n_hotels
+        numAllowedDocs = self.null_policy.n_hotels
 
         validDocs = self.n_reco
 
@@ -132,7 +132,7 @@ class SlateEstimator(object):
         return scipy.linalg.pinv(gamma, cond=1e-15, rcond=1e-15)
 
     def estimate(self, x, explored_ranking, explored_value, new_ranking):
-        numAllowedDocs = self.policy.n_hotels
+        numAllowedDocs = self.null_policy.n_hotels
         validDocs = min(numAllowedDocs, self.n_reco)
         vectorDimension = validDocs * numAllowedDocs
         tempRange = range(validDocs)
