@@ -1,17 +1,46 @@
+from abc import abstractmethod
+
 import numpy as np
 from collections import defaultdict
 from itertools import groupby
 
-
-class PriorPolicy(object):
-    def __init__(self, prob, n_hotels, n_reco, greedy=True):
-        self.prob = prob
+"""
+Classes represent policies that have recommend function mapping from context to recommendation(treatment)
+"""
+class Policy(object):
+    def __init__(self, n_items, n_reco):
+        """
+        :param n_items: number of all items
+        :param n_reco: number of recommendation
+        """
         self.n_reco = n_reco
-        self.n_hotels = n_hotels
+        self.n_items = n_items
+
+    @abstractmethod
+    def recommend(self, context):
+        """
+        recommend a permutation of items given a context
+        :return: list of items
+        """
+        pass
+
+"""
+Sample items without replacement based on pre-define probability
+"""
+class ProbPolicy(Policy):
+
+
+    def __init__(self, prob_dist, n_items, n_reco, greedy=True):
+        """
+        :param prob_dist: probability distribution over items
+        :param greedy: if greedy is true -> recommend items which have the highest probabilities
+        """
+        super(ProbPolicy, self).__init__(n_items, n_reco)
+        self.prob = prob_dist
         self.greedy = greedy
 
-    def recommend(self, x):
-        cur_dist = self.prob[x]
+    def recommend(self, context):
+        cur_dist = self.prob[context]
         if self.greedy:
             reco = np.argsort(-cur_dist, kind='mergesort')[:self.n_reco]
         else:
@@ -19,50 +48,58 @@ class PriorPolicy(object):
         return reco
 
 
-class GlobalSortPolicy(object):
-    def __init__(self, n_hotels, n_reco):
-        self.global_sort = None
-        self.n_reco = n_reco
-        self.n_hotels = n_hotels
+"""
+Sort items by popularity (number of clicks)
+"""
+class GlobalSortPolicy(Policy):
+    def __init__(self, n_items, n_reco, sim_data):
+        super(GlobalSortPolicy, self).__init__(n_items, n_reco)
+        self.global_sort = self.get_mostpopular(sim_data)
 
-    def recommend(self, x):
-        return self.global_sort[:self.n_reco]
-
-    def train(self, simData):
-        book_hotel = [d['h'] for d in simData if d['r'] > 0]
+    def get_mostpopular(self, sim_data):
+        book_hotel = [d['h'] for d in sim_data if d['r'] > 0]
         hotel_booking = defaultdict(int)
         for h in book_hotel:
             hotel_booking[h] += 1
-        self.global_sort = np.array(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1])))
+        return np.array(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1])))
+
+    def recommend(self, context):
+        return self.global_sort[:self.n_reco]
 
 
-class MostCommonByUserPolicy(object):
-    def __init__(self, n_hotels, n_reco):
-        self.policy_map = dict()
+"""
+Sort items by popularity given context(user)
+"""
+class MostCommonByUserPolicy(Policy):
+    def __init__(self, n_items, n_reco, sim_data):
+        super(MostCommonByUserPolicy, self).__init__(n_items, n_reco)
+        self.sorting_map = self.get_mostpopular(sim_data)
         self.n_reco = n_reco
-        self.n_hotels = n_hotels
+        self.n_items = n_items
 
-    def recommend(self, x):
-        return self.policy_map[x][:self.n_reco]
-
-    def train(self, simData):
-        groupData = groupby(sorted(simData, key=lambda x: x['x']), key=lambda x: x['x'])
+    def get_mostpopular(self, sim_data):
+        groupData = groupby(sorted(sim_data, key=lambda x: x['x']), key=lambda x: x['x'])
         for x, data in groupData:
             book_hotel = [d['h'] for d in data if d['r'] > 0]
             hotel_booking = defaultdict(int)
             for h in book_hotel:
                 hotel_booking[h] += 1
-            self.policy_map[x] = np.array(list(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1]))))
+        return np.array(list(map(lambda x: x[0], sorted(hotel_booking.items(), key=lambda x: -x[1]))))
 
+    def recommend(self, context):
+        return self.sorting_map[context][:self.n_reco]
 
-class RandomSortPolicy(object):
-    def __init__(self, n_hotels, n_reco):
-        self.global_sort = None
+"""
+Random sort
+"""
+class RandomSortPolicy(Policy):
+    def __init__(self, n_items, n_reco):
+        super(RandomSortPolicy, self).__init__(n_items, n_reco)
         self.n_reco = n_reco
-        self.n_hotels = n_hotels
+        self.n_items = n_items
 
-    def recommend(self, x):
-        return np.random.choice(self.n_hotels, self.n_reco, replace=False)
+    def recommend(self, context):
+        return np.random.choice(self.n_items, self.n_reco, replace=False)
 
 
 class FixedPolicy(object):

@@ -11,6 +11,7 @@ from Utils import *
 import numpy as np
 import pandas as pd
 
+"""On develop, please ignore this"""
 
 def simmulate(policy, env, users):
     x = np.random.choice(users)
@@ -19,10 +20,10 @@ def simmulate(policy, env, users):
     return {"x": x, "y": tuple(reco), "r": reward, "h": pick}
 
 
-def estimate(estimator, policy, simData):
+def estimate(estimator, policy, sim_data):
     return sum(
         [estimator.estimate(d['x'], np.array(d['y']), d['r'], policy.recommend(d['x'])) for d in
-         simData])
+         sim_data])
 
 
 def getSimVal(policy, env, users, N=10000):
@@ -32,8 +33,8 @@ def getSimVal(policy, env, users, N=10000):
     return sum([d['r'] for d in sim])
 
 
-def getBHR(policy, simData):
-    return sum([d['h'] in policy.recommend(d['x']) for d in simData if d['h'] is not None])
+def getBHR(policy, sim_data):
+    return sum([d['h'] in policy.recommend(d['x']) for d in sim_data if d['h'] is not None])
 
 
 if __name__ == "__main__":
@@ -50,26 +51,26 @@ if __name__ == "__main__":
         null_policy_prob = np.repeat([2.0, 1.0], n_hotel_per_group)
         null_policy_prob /= null_policy_prob.sum()
 
-        nullPolicy = PriorPolicy({"A": null_policy_prob}, n_reco=n_reco,
-                                 n_hotels=n_hotel, greedy=False)
+        nullPolicy = ProbPolicy({"A": null_policy_prob}, n_reco=n_reco,
+                                n_items=n_hotel, greedy=False)
 
         env = BinaryDiversEnvironment(0.5, 0.25, (0.6, 0.4), n_hotel_per_group)
 
-        simData = [simmulate(nullPolicy, env, ["A"]) for _ in range(n)]
+        sim_data = [simmulate(nullPolicy, env, ["A"]) for _ in range(n)]
 
         slateEstimator = SlateEstimator(n_reco, nullPolicy)
-        slateEstimator2 = SlateEstimator2(n_reco, nullPolicy)
+        slateEstimator2 = SlateEstimatorImproved(n_reco, nullPolicy)
 
         mostCommon = FixedPolicy(m_policy)
-        bhrMostCommon = getBHR(mostCommon, simData)
-        slateMostCommon = estimate(slateEstimator, mostCommon, simData)
-        slateMostCommon2 = estimate(slateEstimator2, mostCommon, simData)
+        bhrMostCommon = getBHR(mostCommon, sim_data)
+        slateMostCommon = estimate(slateEstimator, mostCommon, sim_data)
+        slateMostCommon2 = estimate(slateEstimator2, mostCommon, sim_data)
         actMostCommon = getSimVal(mostCommon, env, ["A"], n)
 
         dPolicy = FixedPolicy(d_policy)
-        bhrUser = getBHR(dPolicy, simData)
-        slateUser = estimate(slateEstimator, dPolicy, simData)
-        slateUser2 = estimate(slateEstimator2, dPolicy, simData)
+        bhrUser = getBHR(dPolicy, sim_data)
+        slateUser = estimate(slateEstimator, dPolicy, sim_data)
+        slateUser2 = estimate(slateEstimator2, dPolicy, sim_data)
         actUser = getSimVal(dPolicy, env, users, n)
 
         print(i)
