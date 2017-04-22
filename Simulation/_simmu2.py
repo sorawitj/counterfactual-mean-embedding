@@ -3,7 +3,7 @@ get_ipython().magic(u'autoreload 2')
 
 import sys
 
-sys.path.append("Simmu")
+sys.path.append("Simulation")
 from Environment import *
 from Estimator import *
 from Policy import *
