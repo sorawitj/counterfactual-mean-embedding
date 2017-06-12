@@ -216,3 +216,21 @@ class SlateEstimatorImproved(SlateEstimator):
         estimatedPhi = np.dot(self.gammaInverse(context), posRelVector)
 
         return np.dot(estimatedPhi, newSlateVector)
+
+"""
+The counterfactual mean embedding estimator 
+"""
+class CMEstimator(Estimator):
+
+    def __init__(self, n_reco, null_policy, sim_data):
+
+        super(CMEstimator,self).__init__(n_reco, null_policy, sim_data)
+
+        ###
+
+    def estimate(self, context, null_reco, null_reward, new_reco):
+        ###
+
+        
+        
+###
