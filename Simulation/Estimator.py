@@ -9,7 +9,6 @@ import pandas as pd
 Classes that represent different policy estimators for simulated experiments
 """
 
-
 class Estimator(object):
     def __init__(self, n_reco, null_policy, sim_data):
         """
@@ -32,7 +31,6 @@ class Estimator(object):
         :return: expected reward (double)
         """
         pass
-
 
 class DirectEstimator(Estimator):
     def __init__(self, n_reco, sim_data):
@@ -222,15 +220,38 @@ The counterfactual mean embedding estimator
 """
 class CMEstimator(Estimator):
 
-    def __init__(self, n_reco, null_policy, sim_data):
-
+    def __init__(self, n_reco, null_policy, sim_data, context_kernel, recom_kernel, params):
+        """
+        :param context_kernel: the kernel function for the context variable
+        :param recom_kernel: the kernel function for the recommendation
+        :param params: all parameters including regularization parameter and kernel parameters
+        """
+        
         super(CMEstimator,self).__init__(n_reco, null_policy, sim_data)
-
-        ###
+        self.context_kernel = context_kernel
+        self.recom_kernel = recom_kernel
+        self.params = params
 
     def estimate(self, context, null_reco, null_reward, new_reco):
-        ###
+        """
+        Calculate and return a coefficient vector (beta) of the counterfactual
+        mean embedding of reward distribution.
+        """
 
+        reg_param = self.params[0]
+        context_param = self.params[1]
+        recom_param = self.params[2]
+
+        contextMatrix = self.context_kernel(...,..., context_param)
+        newContextMatrix = self.context_kernel(...,..., context_param)
+        recomMatrix = self.recom_kernel(...,..., recom_param)
+        newRecomMatrix = self.recom_kernel(...,..., recom_param)
         
+        # calculate the coefficient vector
+        b = np.dot(np.multiply(newContextMatrix,newRecomMatrix),np.repeat(1./m,m,axis=0))
+        beta_vec = np.linalg.solve(np.multiply(ContextMatrix,RecomMatrix) + np.diag(np.repeat(n*reg_param,n)), b)
+        
+        # return the expected reward
+        return np.dot(beta_vec, null_reward)
         
 ###
