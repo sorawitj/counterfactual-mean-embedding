@@ -4,7 +4,7 @@ from Policy import *
 from Utils import *
 import numpy as np
 import pandas as pd
-
+from sklearn.metrics.pairwise import rbf_kernel
 
 def simmulate(policy, env, users):
     """
@@ -49,6 +49,7 @@ if __name__ == "__main__":
     result_df = pd.DataFrame(columns=["directVal",
                                       "ipsVal",
                                       "slateVal",
+                                      "cmeVal",
                                       "actualVal"
                                       ])
 
@@ -79,15 +80,20 @@ if __name__ == "__main__":
         ipsEstimator = IPSEstimator(config['n_reco'], null_policy, new_policy)
         slateEstimator2 = SlateEstimatorImproved(config['n_reco'], null_policy)
 
+        # counterfactual mean estimator
+        #cmEstimator = CMEstimator(config['n_reco'], null_policy, sim_data, rbf_kernel, rbf_kernel, ...)
+        
         directVal = estimate(directEstimator, new_policy, sim_data)
         ipsVal = estimate(ipsEstimator, new_policy, sim_data)
         slateVal = estimate(slateEstimator2, new_policy, sim_data)
-
+        #cmeVal = estimate(cmEstimator, new_policy, sim_data)
+        
         actualVal = get_sim_reward(new_policy, environment, config['users'], config['n_observation'])
 
         dictVal = {"directVal": directVal,
                    "ipsVal": ipsVal,
                    "slateVal": slateVal,
+                   "cmeVal": cmeVal,
                    "actualVal": actualVal}
         result_df = result_df.append(dictVal, ignore_index=True)
         print(result_df)
