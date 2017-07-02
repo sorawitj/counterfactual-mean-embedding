@@ -238,20 +238,32 @@ class CMEstimator(Estimator):
         mean embedding of reward distribution.
         """
 
+        # extract the regularization and kernel parameters
         reg_param = self.params[0]
         context_param = self.params[1]
         recom_param = self.params[2]
 
+        # Calculate the kernel matrices used to estimate the coefficients.
+        # contextMatrix : a kernel matrix K_ij = k(x_i,x_j) between contexts
+        #                 corresponding to the null policy 
+        # newContextMatrix : a kernel matrix K_ij = k(x'_i,x'_j) between contexts
+        #                 corresponding to the new policy
+        # recomMatrix : a kernel matrix G_ij = g(s_i,s_j) between treatments
+        #                 corresponding to the null policy
+        # newRecomMatrix : a kernel matrix G_ij = g(s'_i,s'_j) between treatments
+        #                 corresponding to the new policy
+        #
         contextMatrix = self.context_kernel(...,..., context_param)
         newContextMatrix = self.context_kernel(...,..., context_param)
         recomMatrix = self.recom_kernel(...,..., recom_param)
         newRecomMatrix = self.recom_kernel(...,..., recom_param)
         
-        # calculate the coefficient vector
+        # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         b = np.dot(np.multiply(newContextMatrix,newRecomMatrix),np.repeat(1./m,m,axis=0))
         beta_vec = np.linalg.solve(np.multiply(ContextMatrix,RecomMatrix) + np.diag(np.repeat(n*reg_param,n)), b)
         
-        # return the expected reward
+        # return the expected reward as an average of the rewards, obtained from the null policy,
+        # weighted by the coefficients beta from the counterfactual mean estimator.
         return np.dot(beta_vec, null_reward)
         
 ###
