@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel
 
-def simmulate(policy, env, users):
+def simulate(policy, env, users):
     """
     simulate data given policy, environment and set of users
     :return: list of observations {"x": context, "y": recommendation, "r": reward, "p": pick item}

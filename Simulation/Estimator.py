@@ -230,6 +230,7 @@ class CMEstimator(Estimator):
         super(CMEstimator,self).__init__(n_reco, null_policy, sim_data)
         self.context_kernel = context_kernel
         self.recom_kernel = recom_kernel
+        self.sim_data = sim_data
         self.params = params
 
     def estimate(self, context, null_reco, null_reward, new_reco):
@@ -237,7 +238,7 @@ class CMEstimator(Estimator):
         Calculate and return a coefficient vector (beta) of the counterfactual
         mean embedding of reward distribution.
         """
-
+        
         # extract the regularization and kernel parameters
         reg_param = self.params[0]
         context_param = self.params[1]
@@ -254,8 +255,9 @@ class CMEstimator(Estimator):
         #                 corresponding to the new policy
         #
         contextMatrix = self.context_kernel(...,..., context_param)
-        newContextMatrix = self.context_kernel(...,..., context_param)
         recomMatrix = self.recom_kernel(...,..., recom_param)
+        
+        newContextMatrix = self.context_kernel(...,..., context_param)
         newRecomMatrix = self.recom_kernel(...,..., recom_param)
         
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
@@ -265,5 +267,4 @@ class CMEstimator(Estimator):
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
         return np.dot(beta_vec, null_reward)
-        
 ###
