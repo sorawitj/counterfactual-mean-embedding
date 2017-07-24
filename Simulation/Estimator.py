@@ -9,63 +9,42 @@ import pandas as pd
 Classes that represent different policy estimators for simulated experiments
 """
 
-class Estimator(object):
-    def __init__(self, n_reco, null_policy, sim_data):
-        """
-        :param n_reco: number of recommendation
-        :param null_policy: a policy used to generate data
-        :param sim_data: list of observations {"x": context, "y": recommendation, "r": reward, "p": pick item}
-        """
-        self.n_reco = n_reco
-        self.null_policy = null_policy
-        self.sim_data = sim_data
 
+class Estimator(object):
     @abstractmethod
-    def estimate(self, context, null_reco, null_reward, new_reco):
+    def estimate(self, sim_data):
         """
         calculate expected reward from an observation
-        :param context: a string represent user
-        :param null_reco: a treatment generated under null policy
-        :param null_reward: a reward obtained under null policy
-        :param new_reco: a treatment generated under new policy
+        :param sim_data: a data frame consists of {context, null_reco, null_reward, new_reco, new_reward}
         :return: expected reward (double)
         """
         pass
 
+
 class DirectEstimator(Estimator):
-    def __init__(self, n_reco, sim_data):
-        super(DirectEstimator, self).__init__(n_reco, None, sim_data)
-        self.expected_val = self.getExpectedVal()
+    def estimate(self, sim_data):
+        expReward = sim_data.groupby(['context', 'new_reco'])['null_reward'].agg(['mean', 'count'])
+        expReward = (expReward['mean'] * expReward['count']).sum()
 
-    def getExpectedVal(self):
-        """
-        Compute empirical average reward given context, treatment
-        :return: a dictionary mapping from (context, treatment) -> average reward
-        """
-        return_dict = pd.DataFrame(self.sim_data).groupby(['x', 'y'])['r'].mean().to_dict()
-        return return_dict
-
-    def estimate(self, context, null_reco, null_reward, new_reco):
-        expVal = self.expected_val.get((context, tuple(new_reco)))
-        if expVal is not None:
-            return expVal
-        else:
-            return 0.0
+        return expReward
 
 
 class IPSEstimator(Estimator):
     def __init__(self, n_reco, null_policy, new_policy):
         """
+        :param n_reco: number of recommendation
+        :param null_policy: a policy used to generate data
         :param new_policy: a policy that we want to estimate its reward
+
         self.xxx_probDist is a mapping from context to probability of showing a given permutation of items
         """
-        super(IPSEstimator, self).__init__(n_reco, null_policy, None)
-
+        self.n_reco = n_reco
+        self.null_policy = null_policy
         self.new_policy = new_policy
-        self.null_probDist = dict([(x, self.get_probDist(x, self.null_policy)) for x in self.null_policy.prob])
-        self.new_probDist = dict([(x, self.get_probDist(x, self.new_policy)) for x in self.new_policy.prob])
+        self.null_prob_dist = dict([(x, self.get_prob_dist(x, self.null_policy)) for x in self.null_policy.prob])
+        self.new_prob_dist = dict([(x, self.get_prob_dist(x, self.new_policy)) for x in self.new_policy.prob])
 
-    def get_probDist(self, context, policy):
+    def get_prob_dist(self, context, policy):
         """
         Calculate probability distribution over set of permutation of items
         :param context: a string represent user
@@ -89,19 +68,27 @@ class IPSEstimator(Estimator):
             probDist[tuple(permutation)] = prob
         return probDist
 
-    def estimate(self, context, null_reco, null_reward, new_reco):
-        nullProb = self.null_probDist[context][tuple(null_reco)]
-        newProb = self.new_probDist[context][tuple(null_reco)]
+    def single_estimate(self, context, null_reco, null_reward, new_reco):
+        nullProb = self.null_prob_dist[context][tuple(null_reco)]
+        newProb = self.new_prob_dist[context][tuple(null_reco)]
 
         return null_reward * newProb / nullProb
+
+    def estimate(self, sim_data):
+        expReward = sim_data.apply(
+            lambda x: self.single_estimate(x.context, x.null_reco, x.null_reward, x.new_reco), axis=1).sum()
+
+        return expReward
 
 
 class SlateEstimator(IPSEstimator):
     def __init__(self, n_reco, null_policy):
-        super(IPSEstimator, self).__init__(n_reco, null_policy, None)
-        self.null_probDist = dict([(x, self.get_probDist(x, null_policy)) for x in self.null_policy.prob])
 
-    def gammaInverse(self, context):
+        self.n_reco = n_reco
+        self.null_policy = null_policy
+        self.null_prob_dist = dict([(x, self.get_prob_dist(x, null_policy)) for x in self.null_policy.prob])
+
+    def gamma_inverse(self, context):
         """
         calculate inverse of gamma
         see Off-policy evaluation for slate recommendation(https://arxiv.org/pdf/1605.04812.pdf) for more details
@@ -137,22 +124,22 @@ class SlateEstimator(IPSEstimator):
 
         return scipy.linalg.pinv(gamma, cond=1e-15, rcond=1e-15)
 
-    def estimate(self, context, null_reco, null_reward, new_reco):
+    def single_estimate(self, context, null_reco, null_reward, new_reco):
         numAllowedDocs = self.null_policy.n_items
         validDocs = min(numAllowedDocs, self.n_reco)
         vectorDimension = validDocs * numAllowedDocs
         tempRange = range(validDocs)
 
         exploredMatrix = np.zeros((validDocs, numAllowedDocs), dtype=np.longdouble)
-        exploredMatrix[tempRange, null_reco[0:validDocs]] = null_reward
+        exploredMatrix[tempRange, list(null_reco[0:validDocs])] = null_reward
 
         newMatrix = np.zeros((validDocs, numAllowedDocs), dtype=np.longdouble)
-        newMatrix[tempRange, new_reco[0:validDocs]] = 1
+        newMatrix[tempRange, list(new_reco[0:validDocs])] = 1
 
         posRelVector = exploredMatrix.reshape(vectorDimension)
         newSlateVector = newMatrix.reshape(vectorDimension)
 
-        estimatedPhi = np.dot(self.gammaInverse(context), posRelVector)
+        estimatedPhi = np.dot(self.gamma_inverse(context), posRelVector)
 
         return np.dot(estimatedPhi, newSlateVector)
 
@@ -162,11 +149,13 @@ An improved version of Slate estimator
 Add one more assumption to reduce variance:
     reward function does not depend on the position of items, for example, showing item i on position 1 is similar to showing item i on position 3
 """
+
+
 class SlateEstimatorImproved(SlateEstimator):
     def __init__(self, n_reco, null_policy):
         super(SlateEstimatorImproved, self).__init__(n_reco, null_policy)
 
-    def gammaInverse(self, x):
+    def gamma_inverse(self, x):
 
         numAllowedDocs = self.null_policy.n_items
 
@@ -176,7 +165,7 @@ class SlateEstimatorImproved(SlateEstimator):
                          dtype=np.longdouble)
         currentMarginals = np.zeros(numAllowedDocs)
         for p in range(validDocs):
-            currentMarginals += np.sum(self.null_probDist[x], axis=tuple([q for q in range(validDocs) if q != p]),
+            currentMarginals += np.sum(self.null_prob_dist[x], axis=tuple([q for q in range(validDocs) if q != p]),
                                        dtype=np.longdouble)
         gamma[0:numAllowedDocs, 0:numAllowedDocs] = np.diag(currentMarginals)
 
@@ -184,7 +173,7 @@ class SlateEstimatorImproved(SlateEstimator):
                                  dtype=np.longdouble)
         for p in range(validDocs):
             for q in range(p + 1, validDocs):
-                pairMarginals += np.sum(self.null_probDist[x],
+                pairMarginals += np.sum(self.null_prob_dist[x],
                                         axis=tuple([r for r in range(validDocs) if r != p and r != q]),
                                         dtype=np.longdouble)
         np.fill_diagonal(pairMarginals, 0)
@@ -197,52 +186,54 @@ class SlateEstimatorImproved(SlateEstimator):
 
         return scipy.linalg.pinv(gamma, cond=1e-15, rcond=1e-15)
 
-    def estimate(self, context, null_reco, null_reward, new_reco):
+    def single_estimate(self, context, null_reco, null_reward, new_reco):
         numAllowedDocs = self.null_policy.n_items
         validDocs = min(numAllowedDocs, self.n_reco)
         vectorDimension = numAllowedDocs
 
         exploredMatrix = np.zeros(numAllowedDocs, dtype=np.longdouble)
-        exploredMatrix[null_reco[0:validDocs]] = null_reward
+        exploredMatrix[list(null_reco[0:validDocs])] = null_reward
 
         newMatrix = np.zeros(numAllowedDocs, dtype=np.longdouble)
-        newMatrix[new_reco[0:validDocs]] = 1
+        newMatrix[list(new_reco[0:validDocs])] = 1
 
         posRelVector = exploredMatrix.reshape(vectorDimension)
         newSlateVector = newMatrix.reshape(vectorDimension)
 
-        estimatedPhi = np.dot(self.gammaInverse(context), posRelVector)
+        estimatedPhi = np.dot(self.gamma_inverse(context), posRelVector)
 
         return np.dot(estimatedPhi, newSlateVector)
+
 
 """
 The counterfactual mean embedding estimator 
 """
-class CMEstimator(Estimator):
 
-    def __init__(self, n_reco, null_policy, sim_data, context_kernel, recom_kernel, params):
+
+class CMEstimator(Estimator):
+    def __init__(self, context_kernel, recom_kernel, params):
         """
         :param context_kernel: the kernel function for the context variable
         :param recom_kernel: the kernel function for the recommendation
         :param params: all parameters including regularization parameter and kernel parameters
         """
-        
-        super(CMEstimator,self).__init__(n_reco, null_policy, sim_data)
+
         self.context_kernel = context_kernel
         self.recom_kernel = recom_kernel
-        self.sim_data = sim_data
         self.params = params
 
-    def estimate(self, context, null_reco, null_reward, new_reco):
+    def estimate(self, sim_data):
         """
         Calculate and return a coefficient vector (beta) of the counterfactual
         mean embedding of reward distribution.
         """
-        
+
         # extract the regularization and kernel parameters
         reg_param = self.params[0]
         context_param = self.params[1]
         recom_param = self.params[2]
+
+        null_reward = sim_data.null_reward
 
         # Calculate the kernel matrices used to estimate the coefficients.
         # contextMatrix : a kernel matrix K_ij = k(x_i,x_j) between contexts
@@ -254,17 +245,17 @@ class CMEstimator(Estimator):
         # newRecomMatrix : a kernel matrix G_ij = g(s'_i,s'_j) between treatments
         #                 corresponding to the new policy
         #
-        contextMatrix = self.context_kernel(...,..., context_param)
-        recomMatrix = self.recom_kernel(...,..., recom_param)
-        
-        newContextMatrix = self.context_kernel(...,..., context_param)
-        newRecomMatrix = self.recom_kernel(...,..., recom_param)
-        
+        contextMatrix = self.context_kernel(..., ..., context_param)
+        newContextMatrix = self.context_kernel(..., ..., context_param)
+        recomMatrix = self.recom_kernel(..., ..., recom_param)
+        newRecomMatrix = self.recom_kernel(..., ..., recom_param)
+
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
-        b = np.dot(np.multiply(newContextMatrix,newRecomMatrix),np.repeat(1./m,m,axis=0))
-        beta_vec = np.linalg.solve(np.multiply(ContextMatrix,RecomMatrix) + np.diag(np.repeat(n*reg_param,n)), b)
-        
+        b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
+        beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
         return np.dot(beta_vec, null_reward)
+
 ###
