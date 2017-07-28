@@ -209,7 +209,6 @@ class SlateEstimatorImproved(SlateEstimator):
 The counterfactual mean embedding estimator 
 """
 
-
 class CMEstimator(Estimator):
     def __init__(self, context_kernel, recom_kernel, params):
         """
@@ -229,27 +228,17 @@ class CMEstimator(Estimator):
         """
 
         # extract the regularization and kernel parameters
-        reg_param = self.params[0]
+        reg_param     = self.params[0]
         context_param = self.params[1]
-        recom_param = self.params[2]
+        recom_param   = self.params[2]
 
         null_reward = sim_data.null_reward
 
-        # Calculate the kernel matrices used to estimate the coefficients.
-        # contextMatrix : a kernel matrix K_ij = k(x_i,x_j) between contexts
-        #                 corresponding to the null policy 
-        # newContextMatrix : a kernel matrix K_ij = k(x'_i,x'_j) between contexts
-        #                 corresponding to the new policy
-        # recomMatrix : a kernel matrix G_ij = g(s_i,s_j) between treatments
-        #                 corresponding to the null policy
-        # newRecomMatrix : a kernel matrix G_ij = g(s'_i,s'_j) between treatments
-        #                 corresponding to the new policy
-        #
-        contextMatrix = self.context_kernel(..., ..., context_param)
-        newContextMatrix = self.context_kernel(..., ..., context_param)
-        recomMatrix = self.recom_kernel(..., ..., recom_param)
-        newRecomMatrix = self.recom_kernel(..., ..., recom_param)
-
+        contextMatrix = self.context_kernel(sim_data.context, sim_data.context, context_param)
+        newContextMatrix = self.context_kernel(sim_data.context, sim_data.context, context_param)
+        recomMatrix = self.recom_kernel(sim_data.null_reco, sim_data.null_reco, recom_param)
+        newRecomMatrix = self.recom_kernel(sim_data.new_reco, sim_data.new_reco, recom_param)
+        
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
