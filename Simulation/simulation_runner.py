@@ -57,7 +57,7 @@ if __name__ == "__main__":
     for i in range(5):
 
         sim_data = list()
-        for i in range(config['n_observation']):
+        for j in range(config['n_observation']):
             sim_data.append(simulate(null_policy, new_policy, environment, config['users']))
 
         sim_data = pd.DataFrame(sim_data)
@@ -66,8 +66,8 @@ if __name__ == "__main__":
         ipsEstimator = IPSEstimator(config['n_reco'], null_policy, new_policy)
         slateEstimator2 = SlateEstimatorImproved(config['n_reco'], null_policy)
 
-        # we instantiate the counterfactual mean estimator here. Note that we also pass the
-        # kernel functions (see scikit-learn doc: sklearn.metrics.pairwise) and their parameters.
+        # Note that we also pass the kernel functions (see scikit-learn doc:
+        # sklearn.metrics.pairwise) and their parameters.
         params = [1e-5, 1.0, 1.0]
         cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, params)
 
