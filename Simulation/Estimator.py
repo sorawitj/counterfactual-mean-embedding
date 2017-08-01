@@ -210,6 +210,7 @@ The counterfactual mean embedding estimator
 """
 
 class CMEstimator(Estimator):
+    
     def __init__(self, context_kernel, recom_kernel, params):
         """
         :param context_kernel: the kernel function for the context variable
@@ -234,12 +235,14 @@ class CMEstimator(Estimator):
 
         null_reward = sim_data.null_reward
 
-        contextMatrix = self.context_kernel(sim_data.context, sim_data.context, context_param)
+        contextMatrix    = self.context_kernel(sim_data.context, sim_data.context, context_param)
         newContextMatrix = self.context_kernel(sim_data.context, sim_data.context, context_param)
-        recomMatrix = self.recom_kernel(sim_data.null_reco, sim_data.null_reco, recom_param)
-        newRecomMatrix = self.recom_kernel(sim_data.new_reco, sim_data.new_reco, recom_param)
+        recomMatrix      = self.recom_kernel(sim_data.null_reco, sim_data.null_reco, recom_param)
+        newRecomMatrix   = self.recom_kernel(sim_data.new_reco, sim_data.new_reco, recom_param)
         
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
+        m = sim_data["new_reco"].shape[0]
+        n = sim_data["null_reco"].shape[0]
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
 
