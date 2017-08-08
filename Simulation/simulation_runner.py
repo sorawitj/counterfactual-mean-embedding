@@ -19,7 +19,7 @@ def simulate(null_policy, new_policy, env, users):
     new_reward, _ = env.get_reward(context, new_reco)
 
     return {"context": context, "null_reco": tuple(null_reco), "null_reward": null_reward,
-            "new_reco": tuple(new_reco),"new_reward": new_reward}
+            "new_reco": tuple(new_reco), "new_reward": new_reward}
 
 
 if __name__ == "__main__":
