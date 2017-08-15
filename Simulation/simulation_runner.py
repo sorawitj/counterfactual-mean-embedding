@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
         # Note that we also pass the kernel functions (see scikit-learn doc:
         # sklearn.metrics.pairwise) and their parameters.
-        params = [1e-5, 1.0, 1.0]
+        params = [1e-10, 10., 10.]
         cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, params)
 
         directVal = directEstimator.estimate(sim_data)

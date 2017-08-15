@@ -5,6 +5,8 @@ import itertools
 import scipy.linalg
 import pandas as pd
 
+from scipy.optimize import lsq_linear
+
 """
 Classes that represent different policy estimators for simulated experiments
 """
@@ -248,7 +250,8 @@ class CMEstimator(Estimator):
         n = sim_data["null_reco"].shape[0]
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
-
+        #beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf)).x
+        
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
         return np.dot(beta_vec, null_reward)
