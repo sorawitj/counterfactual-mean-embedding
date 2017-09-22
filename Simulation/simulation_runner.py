@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
     reg_pow = np.arange(-10, 7)
     reg_params = 10.0 ** reg_pow
-    params = [[r, 10.0, 10.0] for r in reg_params]
+    params = [[r, 0.1, 0.1] for r in reg_params]
 
     """
     CMEEstimator grid search
@@ -108,6 +108,7 @@ if __name__ == "__main__":
     grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
 
     grid_search_df.plot.line(x='param', y='estimated_value')
+    print(grid_search_df)
 
     """
     Comparing between estimators

@@ -6,6 +6,7 @@ import scipy.linalg
 import pandas as pd
 
 from scipy.optimize import lsq_linear
+from scipy.spatial.distance import pdist
 
 """
 Classes that represent different policy estimators for simulated experiments
@@ -261,13 +262,17 @@ class CMEstimator(Estimator):
 
         # extract the regularization and kernel parameters
         reg_param = self.params[0]
-        context_param = self.params[1]
-        recom_param = self.params[2]
-
+        #context_param = self.params[1]
+        #recom_param = self.params[2]
+        
         null_reward = sim_data.null_reward
         context_vec = np.stack(sim_data.context_vec.as_matrix())
         null_reco_vec = np.stack(sim_data.null_reco_vec.as_matrix())
         new_reco_vec = np.stack(sim_data.new_reco_vec.as_matrix())
+
+        # use median heuristic for the bandwidth parameters
+        context_param = 0.5/np.median(pdist(context_vec,'seuclidean'))
+        recom_param   = 0.5/np.median(pdist(null_reco_vec,'seuclidean'))
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
@@ -278,8 +283,10 @@ class CMEstimator(Estimator):
         m = sim_data["new_reco"].shape[0]
         n = sim_data["null_reco"].shape[0]
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
-        beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
-        # beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf)).x
+        #beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+        beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf), lsmr_tol='auto').x
+
+        #beta_vec[beta_vec < 0] = 0.0
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
