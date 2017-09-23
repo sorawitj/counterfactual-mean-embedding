@@ -234,11 +234,14 @@ class CMEstimator(Estimator):
         recom_param   = self.params[2]
 
         null_reward = sim_data.null_reward
+        context_vec = np.stack(sim_data.context_vec.as_matrix())
+        null_reco_vec = np.stack(sim_data.null_reco_vec.as_matrix())
+        new_reco_vec = np.stack(sim_data.new_reco_vec.as_matrix())
 
-        contextMatrix    = self.context_kernel(sim_data.context, sim_data.context, context_param)
-        newContextMatrix = self.context_kernel(sim_data.context, sim_data.context, context_param)
-        recomMatrix      = self.recom_kernel(sim_data.null_reco, sim_data.null_reco, recom_param)
-        newRecomMatrix   = self.recom_kernel(sim_data.new_reco, sim_data.new_reco, recom_param)
+        contextMatrix    = self.context_kernel(context_vec, context_vec, context_param)
+        newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
+        recomMatrix      = self.recom_kernel(null_reco_vec, null_reco_vec, recom_param)
+        newRecomMatrix   = self.recom_kernel(new_reco_vec, new_reco_vec, recom_param)
         
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         m = sim_data["new_reco"].shape[0]
