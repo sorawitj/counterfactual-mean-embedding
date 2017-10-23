@@ -51,7 +51,7 @@ def grid_search(params, estimator, sim_data, n_iterations):
             estimated_values.append(estimator.estimate(sim_data))
         mean_value = np.array(estimated_values).mean()
         ret = {'param': param, 'estimated_value': mean_value, 'actual_value': actual_value,
-               'error': np.abs(mean_value - actual_value)}
+               'error': np.abs(mean_value - actual_value),'percent_error': 100.0*np.abs(mean_value - actual_value)/actual_value}
         return_df = return_df.append(ret, ignore_index=True)
 
     return return_df
@@ -72,15 +72,24 @@ def compare_estimators(estimators, n_iterations, null_policy, new_policy, enviro
 
 
 if __name__ == "__main__":
+    #config = {
+    #    "n_items": 6,
+    #    "n_reco": 3,
+    #    "n_observation": 5000,
+    #    "context": ['A', 'B', 'C'],
+    #    "n_dim": 5,
+    #    "tau": 1.5
+    #}
+
     config = {
         "n_items": 6,
         "n_reco": 3,
-        "n_observation": 5000,
+        "n_observation": 1000,
         "context": ['A', 'B', 'C'],
         "n_dim": 5,
         "tau": 1.5
     }
-
+    
     # user features and item features, user preference = user_features.dot(item_features)
     context_vectors = dict([(u, np.random.normal(0, 1, config['n_dim'])) for u in config['context']])
     item_vectors = np.stack([np.random.normal(0, 1, config['n_dim']) for u in range(config['n_items'])])
@@ -91,8 +100,7 @@ if __name__ == "__main__":
                          context_vectors.items()])
 
     # null policy is given by soft max distribution of items given negative of above score
-    # this is an extreme case where null policy is totally opposite the optimal policy
-
+    # this is an extreme case where null policy is totally opposite of the optimal policy
     null_policy_prob = dict([(u, softmax(-np.matmul(s / config["tau"], item_vectors.T / config["tau"]))) for (u, s) in
                              context_vectors.items()])
 
@@ -103,7 +111,7 @@ if __name__ == "__main__":
     environment = Environment(context_prob)
 
     reg_pow = np.arange(-10, 7)
-    reg_params = 10.0 ** reg_pow
+    reg_params = (10.0 ** reg_pow)/config['n_observation']
     params = [[r, 0.1, 0.1] for r in reg_params]
 
     """
