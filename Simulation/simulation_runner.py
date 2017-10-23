@@ -55,7 +55,6 @@ def grid_search(params, estimator, sim_data, n_iterations):
 
     return return_df
 
-
 def compare_estimators(estimators, n_iterations, null_policy, new_policy, environment, context_vectors, item_vectors, config):
     
     return_df = pd.DataFrame(columns=[e.name for e in estimators] + ['actual_value'])
