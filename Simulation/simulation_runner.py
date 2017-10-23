@@ -92,12 +92,9 @@ if __name__ == "__main__":
 
     # null policy is given by soft max distribution of items given negative of above score
     # this is an extreme case where null policy is totally opposite the optimal policy
-<<<<<<< HEAD
-    null_policy_prob = dict([(u, softmax(np.matmul(s, item_vectors.T))) for (u, s) in context_vectors.items()])
-=======
+
     null_policy_prob = dict([(u, softmax(-np.matmul(s / config["tau"], item_vectors.T / config["tau"]))) for (u, s) in
                              context_vectors.items()])
->>>>>>> 6b967cc9805e16c8ebf21cad1e7f0740e672db45
 
     null_policy = ProbPolicy(null_policy_prob, config['n_items'], config['n_reco'], greedy=False)
     # The policy we want to estimate is the optimal policy
