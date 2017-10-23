@@ -12,6 +12,7 @@ def simulate_data(null_policy, new_policy, env, context, context_vectors, item_v
     simulate data given policy, environment and set of context
     :return: observations
     """
+
     sim_data = list()
     for _ in range(n_observation):
         pick_context = np.random.choice(context)
@@ -52,6 +53,7 @@ def grid_search(params, estimator, sim_data, n_iterations):
         ret = {'param': param, 'estimated_value': mean_value, 'actual_value': actual_value,
                'error': np.abs(mean_value - actual_value)}
         return_df = return_df.append(ret, ignore_index=True)
+
     return return_df
 
 
@@ -65,6 +67,7 @@ def compare_estimators(estimators, n_iterations, null_policy, new_policy, enviro
         estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
         estimated_values['actual_value'] = actual_value
         return_df = return_df.append(estimated_values, ignore_index=True)
+
     return return_df
 
 
@@ -74,7 +77,8 @@ if __name__ == "__main__":
         "n_reco": 3,
         "n_observation": 5000,
         "context": ['A', 'B', 'C'],
-        "n_dim": 5
+        "n_dim": 5,
+        "tau": 1.5
     }
 
     # user features and item features, user preference = user_features.dot(item_features)
@@ -83,11 +87,17 @@ if __name__ == "__main__":
 
     # soft max distribution of items given the above score
     # this will be used in the Environment, then it is the optimal policy
-    context_prob = dict([(u, softmax(np.matmul(s, item_vectors.T))) for (u, s) in context_vectors.items()])
+    context_prob = dict([(u, softmax(np.matmul(s / config["tau"], item_vectors.T / config["tau"]))) for (u, s) in
+                         context_vectors.items()])
 
     # null policy is given by soft max distribution of items given negative of above score
     # this is an extreme case where null policy is totally opposite the optimal policy
+<<<<<<< HEAD
     null_policy_prob = dict([(u, softmax(np.matmul(s, item_vectors.T))) for (u, s) in context_vectors.items()])
+=======
+    null_policy_prob = dict([(u, softmax(-np.matmul(s / config["tau"], item_vectors.T / config["tau"]))) for (u, s) in
+                             context_vectors.items()])
+>>>>>>> 6b967cc9805e16c8ebf21cad1e7f0740e672db45
 
     null_policy = ProbPolicy(null_policy_prob, config['n_items'], config['n_reco'], greedy=False)
     # The policy we want to estimate is the optimal policy
@@ -100,8 +110,8 @@ if __name__ == "__main__":
     params = [[r, 0.1, 0.1] for r in reg_params]
 
     """
-    CMEEstimator grid search
-    """
+     CMEEstimator grid search
+     """
     sim_data = simulate_data(null_policy, new_policy, environment, config['context'], context_vectors, item_vectors,
                              config['n_observation'])
     cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
@@ -111,12 +121,12 @@ if __name__ == "__main__":
     print(grid_search_df)
 
     """
-    Comparing between estimators
-    """
+     Comparing between estimators
+     """
     # estimators = [DirectEstimator(), IPSEstimator(config['n_reco'], null_policy, new_policy),
-    #               SlateEstimatorImproved(config['n_reco'], null_policy)]
-    #
-    # result_df = compare_estimators(estimators, 2, null_policy, new_policy, environment, context_vectors, item_vectors,
+    #           SlateEstimatorImproved(config['n_reco'], null_policy)]
+
+    # result_df = compare_estimators(estimators, 10, null_policy, new_policy, environment, context_vectors, item_vectors,
     #                                config)
     #
     # result_df.plot.line(use_index=True)

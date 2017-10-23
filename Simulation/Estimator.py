@@ -237,10 +237,10 @@ class CMEstimator(Estimator):
 
     def __init__(self, context_kernel, recom_kernel, params):
         """
-        :param context_kernel: the kernel function for the context variable
-        :param recom_kernel: the kernel function for the recommendation
-        :param params: all parameters including regularization parameter and kernel parameters
-        """
+         :param context_kernel: the kernel function for the context variable
+         :param recom_kernel: the kernel function for the recommendation
+         :param params: all parameters including regularization parameter and kernel parameters
+         """
 
         self.context_kernel = context_kernel
         self.recom_kernel = recom_kernel
@@ -256,9 +256,8 @@ class CMEstimator(Estimator):
 
     def estimate(self, sim_data):
         """
-        Calculate and return a coefficient vector (beta) of the counterfactual
-        mean embedding of reward distribution.
-        """
+         Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
+         """
 
         # extract the regularization and kernel parameters
         reg_param = self.params[0]
@@ -283,10 +282,17 @@ class CMEstimator(Estimator):
         m = sim_data["new_reco"].shape[0]
         n = sim_data["null_reco"].shape[0]
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
+<<<<<<< HEAD
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
         #beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf), lsmr_tol='auto').x
 
 #beta_vec[beta_vec < 0] = 0.0
+=======
+        #beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+        #beta_vec[beta_vec < 0] = 0.0
+        
+        beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf), lsmr_tol='auto', verbose=2).x
+>>>>>>> 6b967cc9805e16c8ebf21cad1e7f0740e672db45
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
