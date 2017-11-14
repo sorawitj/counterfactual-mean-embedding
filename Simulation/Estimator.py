@@ -261,8 +261,8 @@ class CMEstimator(Estimator):
 
         # extract the regularization and kernel parameters
         reg_param = self.params[0]
-        #context_param = self.params[1]
-        #recom_param = self.params[2]
+        context_param = self.params[1]
+        recom_param = self.params[2]
         
         null_reward = sim_data.null_reward
         context_vec = np.stack(sim_data.context_vec.as_matrix())
@@ -271,8 +271,8 @@ class CMEstimator(Estimator):
 
         # use median heuristic for the bandwidth parameters
         context_param      = 0.5/np.median(pdist(context_vec,'seuclidean'))
-        null_recom_param   = 0.5/np.median(pdist(null_reco_vec,'seuclidean'))
-        new_recom_param    = 0.5/np.median(pdist(new_reco_vec,'seuclidean'))
+        null_recom_param   = (0.5*context_param)/np.median(pdist(null_reco_vec,'seuclidean'))
+        new_recom_param    = (0.5*recom_param)/np.median(pdist(new_reco_vec,'seuclidean'))
         
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)

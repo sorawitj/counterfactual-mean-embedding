@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel
 
-
 def simulate_data(null_policy, new_policy, env, context, context_vectors, item_vectors, n_observation):
     """
     simulate data given policy, environment and set of context
@@ -72,19 +71,11 @@ def compare_estimators(estimators, n_iterations, null_policy, new_policy, enviro
 
 
 if __name__ == "__main__":
-    #config = {
-    #    "n_items": 6,
-    #    "n_reco": 3,
-    #    "n_observation": 5000,
-    #    "context": ['A', 'B', 'C'],
-    #    "n_dim": 5,
-    #    "tau": 1.5
-    #}
 
     config = {
         "n_items": 6,
         "n_reco": 3,
-        "n_observation": 1000,
+        "n_observation": 5000,
         "context": ['A', 'B', 'C'],
         "n_dim": 5,
         "tau": 1.5
@@ -112,7 +103,8 @@ if __name__ == "__main__":
 
     reg_pow = np.arange(-10, 7)
     reg_params = (10.0 ** reg_pow)/config['n_observation']
-    params = [[r, 0.1, 0.1] for r in reg_params]
+    bw_params = (10.0 ** np.arange(-2,2))
+    params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
 
     """
      CMEEstimator grid search
