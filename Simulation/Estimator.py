@@ -283,7 +283,7 @@ class CMEstimator(Estimator):
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         m = sim_data["new_reco"].shape[0]
         n = sim_data["null_reco"].shape[0]
-        b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1.0, m, axis=0))
+        b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1.0 / m, m, axis=0))
 
         # solve a linear least-square
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
@@ -297,4 +297,4 @@ class CMEstimator(Estimator):
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
-        return np.dot(beta_vec, null_reward)
+        return len(sim_data) * np.dot(beta_vec, null_reward)
