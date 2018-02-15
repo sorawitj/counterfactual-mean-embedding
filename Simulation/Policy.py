@@ -7,6 +7,8 @@ from itertools import groupby
 """
 Classes represent policies that have recommend function mapping from context to recommendation(treatment)
 """
+
+
 class Policy(object):
     def __init__(self, n_items, n_reco):
         """
@@ -24,12 +26,13 @@ class Policy(object):
         """
         pass
 
+
 """
 Sample items without replacement based on pre-define probability
 """
+
+
 class ProbPolicy(Policy):
-
-
     def __init__(self, prob_dist, n_items, n_reco, greedy=True):
         """
         :param prob_dist: probability distribution over items
@@ -51,6 +54,8 @@ class ProbPolicy(Policy):
 """
 Sort items by popularity (number of clicks)
 """
+
+
 class GlobalSortPolicy(Policy):
     def __init__(self, n_items, n_reco, sim_data):
         super(GlobalSortPolicy, self).__init__(n_items, n_reco)
@@ -70,6 +75,8 @@ class GlobalSortPolicy(Policy):
 """
 Sort items by popularity given context(user)
 """
+
+
 class MostCommonByUserPolicy(Policy):
     def __init__(self, n_items, n_reco, sim_data):
         super(MostCommonByUserPolicy, self).__init__(n_items, n_reco)
@@ -89,9 +96,12 @@ class MostCommonByUserPolicy(Policy):
     def recommend(self, context):
         return self.sorting_map[context][:self.n_reco]
 
+
 """
 Random sort
 """
+
+
 class RandomSortPolicy(Policy):
     def __init__(self, n_items, n_reco):
         super(RandomSortPolicy, self).__init__(n_items, n_reco)

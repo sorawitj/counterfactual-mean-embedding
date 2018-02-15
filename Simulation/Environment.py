@@ -1,8 +1,10 @@
 import numpy as np
+from scipy.special import expit
 
 """
 Classes represent environments which define how rewards are generated
 """
+
 
 class Environment(object):
     def __init__(self, probDist, examine_rate=None):
@@ -31,13 +33,39 @@ class Environment(object):
         reward = reco[:examine].__contains__(pick)
         if not reward:
             pick = None
-        return int(reward), pick
+        return int(reward)
+
+
+class AvgEnvironment(object):
+    def __init__(self, context_vectors, item_vectors):
+        r"""
+        initialize simple environment
+
+        :param context_vectors: a dictionary mapping from user(context) to their preferences(probability distribution over items)
+        :param examine_rate:
+        """
+        self.context_vectors = context_vectors
+        self.item_vectors = item_vectors
+
+    def get_reward(self, context, reco):
+        r"""
+        generate a reward given user(context) and recommendation
+        :param context: a string represent user
+        :param reco: an avg vector of recommended items
+        :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
+        """
+        context_vector = self.context_vectors[context]
+        reco_vector = np.mean(self.item_vectors[reco], axis=0)
+        prob = expit(context_vector.dot(reco_vector))
+        reward = np.random.binomial(1, prob)
+        return reward
 
 
 class BinaryDiversEnvironment(object):
     """
     more complicated environment in which ADA does not hold true (Reward function depends on the interaction of items in the recommendation)
     """
+
     def __init__(self, examine_rate, book_rate, p, hotels_per_group):
         self.examine_rate = examine_rate
         self.book_rate = book_rate
@@ -62,7 +90,3 @@ class BinaryDiversEnvironment(object):
             reward = 0.0
 
         return reward, pick
-
-
-
-
