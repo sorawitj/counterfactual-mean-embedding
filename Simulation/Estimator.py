@@ -211,7 +211,7 @@ The counterfactual mean embedding estimator
 
 class CMEstimator(Estimator):
     
-    def __init__(self, context_kernel, recom_kernel, params):
+    def __init__(self, context_kernel, recom_kernel, params=(1e-5,1.0,1.0)):
         """
         :param context_kernel: the kernel function for the context variable
         :param recom_kernel: the kernel function for the recommendation
