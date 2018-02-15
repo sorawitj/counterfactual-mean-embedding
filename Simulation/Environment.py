@@ -33,11 +33,11 @@ class Environment(object):
         reward = reco[:examine].__contains__(pick)
         if not reward:
             pick = None
-        return int(reward), pick
+        return int(reward)
 
 
 class AvgEnvironment(object):
-    def __init__(self, context_vectors):
+    def __init__(self, context_vectors, item_vectors):
         r"""
         initialize simple environment
 
@@ -45,6 +45,7 @@ class AvgEnvironment(object):
         :param examine_rate:
         """
         self.context_vectors = context_vectors
+        self.item_vectors = item_vectors
 
     def get_reward(self, context, reco):
         r"""
@@ -54,7 +55,8 @@ class AvgEnvironment(object):
         :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
         """
         context_vector = self.context_vectors[context]
-        prob = expit(context_vector.dot(reco))
+        reco_vector = np.mean(self.item_vectors[reco], axis=0)
+        prob = expit(context_vector.dot(reco_vector))
         reward = np.random.binomial(1, prob)
         return reward
 
