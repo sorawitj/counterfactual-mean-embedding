@@ -22,12 +22,12 @@ def simulate_data(null_policy, new_policy, env, context_vectors, item_vectors, n
         null_reco = null_policy.recommend(pick_context)
         # recommendation is represented by an average over recommended item vectors
         null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
-        null_reward = env.get_reward(pick_context, null_reco_vec)
+        null_reward = env.get_reward(pick_context, null_reco)
 
         new_reco = new_policy.recommend(pick_context)
         # recommendation is represented by an average over recommended item vectors
         new_reco_vec = np.mean(item_vectors[new_reco], axis=0)
-        new_reward = env.get_reward(pick_context, new_reco_vec)
+        new_reward = env.get_reward(pick_context, new_reco)
 
         observation = {"context": pick_context, "context_vec": context_vec, "null_reco": tuple(null_reco),
                        "null_reco_vec": null_reco_vec,
@@ -83,49 +83,50 @@ if __name__ == "__main__":
     }
 
     item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['n_dim']))
+    context_vector_new = np.random.normal(0, 1, size=(config['n_context'], config['n_dim']))
 
     # null policy probability distribution
-    null_policy_prob = softmax(np.random.normal(0, 1, size=(config['n_context'], config['n_items'])), config['tau'],
-                               axis=1)
+    null_policy_prob = softmax(np.random.normal(0, 1, size=(config['n_context'], config['n_items'])), axis=1)
 
     # The policy we use to generate sim data
     null_policy = ProbPolicy(null_policy_prob, config['n_items'], config['n_reco'], greedy=False)
 
-    context_vector_new = np.random.normal(0, 1, size=(config['n_context'], config['n_dim']))
     # new_policy_probability distribution
-    new_policy_prob = softmax(-np.matmul(context_vector_new, item_vectors.T), axis=1)
+    new_policy_prob = softmax(np.matmul(context_vector_new, item_vectors.T), axis=1)
 
     # The policy we want to estimate
     new_policy = ProbPolicy(new_policy_prob, config['n_items'], config['n_reco'], greedy=False)
 
     # set true context vector to be the context vector new so it is an optimal policy
     true_context_vector = context_vector_new
-    environment = AvgEnvironment(context_vector_new)
+    # environment = Environment(new_policy_prob)
+    environment = AvgEnvironment(true_context_vector, item_vectors)
 
     reg_pow = np.arange(1)
     reg_params = (10.0 ** reg_pow) / config['n_observation']
-    bw_params = (10.0 ** np.arange(-1, 0))
+    bw_params = (10.0 ** np.arange(1))
     params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
 
-    """
-     CMEEstimator grid search
-     """
-    sim_data = simulate_data(null_policy, new_policy, environment, true_context_vector, item_vectors,
-                             config['n_observation'])
-    cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
-    grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
-
-    grid_search_df.plot.line(x='param', y='estimated_value')
-    print(grid_search_df)
-
     # """
-    #  Comparing between estimators
+    #  CMEEstimator grid search
     #  """
-    # estimators = [DirectEstimator(), IPSEstimator(config['n_reco'], null_policy, new_policy),
-    #               SlateEstimatorImproved(config['n_reco'], null_policy)]
+    # sim_data = simulate_data(null_policy, new_policy, environment, true_context_vector, item_vectors,
+    #                          config['n_observation'])
     #
-    # result_df = compare_estimators(estimators, 2, null_policy, new_policy, environment, context_vector_null,
-    #                                item_vectors,
-    #                                config)
+    # cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
+    # grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
     #
-    # result_df.plot.line(use_index=True)
+    # grid_search_df.plot.line(x='param', y='estimated_value')
+    # print(grid_search_df)
+
+    """
+     Comparing between estimators
+     """
+    estimators = [DirectEstimator(), IPSEstimator(config['n_reco'], null_policy, new_policy),
+                  SlateEstimatorImproved(config['n_reco'], null_policy), CMEstimator(rbf_kernel, rbf_kernel, params[0])]
+
+    result_df = compare_estimators(estimators, 5, null_policy, new_policy, environment, true_context_vector,
+                                   item_vectors,
+                                   config)
+
+    result_df.plot.line(use_index=True)
