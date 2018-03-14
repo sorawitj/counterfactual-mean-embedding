@@ -298,7 +298,7 @@ class CMEstimator(Estimator):
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, null_recom_param)
-        newRecomMatrix = self.recom_kernel(null_reco_vec, new_reco_vec, new_recom_param)
+        newRecomMatrix = self.recom_kernel(new_reco_vec, new_reco_vec, new_recom_param)
 
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         m = sim_data["new_reco"].shape[0]

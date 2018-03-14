@@ -95,9 +95,9 @@ if __name__ == "__main__":
     # environment = AvgEnvironment(env_item_vectors, config['context_dim'])
     # environment = NNEnvironment(env_item_vectors, config['context_dim'])
 
-    reg_pow = np.arange(-1, 0)
+    reg_pow = np.arange(0, 1)
     reg_params = (10.0 ** reg_pow) / config['n_observation']
-    bw_params = [(10.0 ** 0)]
+    bw_params = [(10.0 ** -1)]
     params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
