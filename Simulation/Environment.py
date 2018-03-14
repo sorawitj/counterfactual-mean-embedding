@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.special import expit
+from Utils import *
 
 """
 Classes represent environments which define how rewards are generated
@@ -7,57 +8,83 @@ Classes represent environments which define how rewards are generated
 
 
 class Environment(object):
-    def __init__(self, probDist, examine_rate=None):
+    def __init__(self, item_vectors, context_dim, examine_rate=None):
         r"""
         initialize simple environment
 
-        :param probDist: a dictionary mapping from user(context) to their preferences(probability distribution over items)
+        :param item_vectors: a dictionary mapping from user(context) to their preferences(probability distribution over items)
         :param examine_rate:
         """
-        self.prob = probDist
+        self.item_vectors = item_vectors
         self.examine_rate = examine_rate
+        self.context_dim = context_dim
 
-    def get_reward(self, context, reco):
+    def get_context(self):
+        return np.random.normal(size=(self.context_dim,))
+
+    def get_reward(self, context_features, reco):
         r"""
         generate a reward given user(context) and recommendation
         :param context: a string represent user
         :param reco: a permutation of item
         :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
         """
-        cur_dist = self.prob[context]
-        pick = np.random.choice(len(cur_dist), 1, p=cur_dist, replace=False)[0]
+        click_probs = softmax(np.matmul(context_features, self.item_vectors[reco].T))
+        click = np.random.choice(np.arange(len(click_probs)), p=click_probs)
         if self.examine_rate is None:
             examine = len(reco)
         else:
             examine = np.random.geometric(self.examine_rate, 1)
-        reward = reco[:examine].__contains__(pick)
-        if not reward:
-            pick = None
-        return int(reward)
+        # non_zero = click.nonzero()[0]
+        # if non_zero.size > 0:
+        #     reward = 1.0 / (non_zero[0] + 1)
+        # else:
+        #     reward = 0.0
+        reward = 1.0 / (click + 1)
+        return reward
 
 
 class AvgEnvironment(object):
-    def __init__(self, context_vectors, item_vectors):
+    def __init__(self, item_vectors, context_dim):
         r"""
         initialize simple environment
 
         :param context_vectors: a dictionary mapping from user(context) to their preferences(probability distribution over items)
         :param examine_rate:
         """
-        self.context_vectors = context_vectors
         self.item_vectors = item_vectors
+        self.context_dim = context_dim
 
-    def get_reward(self, context, reco):
+    def get_context(self):
+        return np.random.normal(0, 1.0, size=(self.context_dim,))
+
+    def get_reward(self, context_features, reco):
         r"""
         generate a reward given user(context) and recommendation
         :param context: a string represent user
         :param reco: an avg vector of recommended items
         :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
         """
-        context_vector = self.context_vectors[context]
         reco_vector = np.mean(self.item_vectors[reco], axis=0)
-        prob = expit(context_vector.dot(reco_vector))
+        prob = expit(context_features.dot(reco_vector))
         reward = np.random.binomial(1, prob)
+        return reward
+
+
+class NNEnvironment(AvgEnvironment):
+    def __init__(self, item_vectors, context_dim):
+        super().__init__(item_vectors, context_dim)
+
+    def get_reward(self, context_features, reco):
+        reco_vector = np.mean(self.item_vectors[reco], axis=0)
+        all_vector = np.concatenate([context_features, reco_vector])
+        W1 = np.random.normal(size=(all_vector.shape[0], 100))
+        B1 = np.random.normal(size=(100,))
+        W2 = np.random.normal(size=(100, 1))
+        B2 = np.random.normal(size=(1,))
+        hidden1 = expit(all_vector.dot(W1) + B1)
+        prob = expit((hidden1.dot(W2) + B2) + np.random.normal(0, 1.0))
+        reward = np.random.binomial(1, prob)[0]
         return reward
 
 

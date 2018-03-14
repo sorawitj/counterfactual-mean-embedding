@@ -51,8 +51,8 @@ if __name__ == "__main__":
         null_policy_prob = np.repeat([2.0, 1.0], n_hotel_per_group)
         null_policy_prob /= null_policy_prob.sum()
 
-        nullPolicy = ProbPolicy({"A": null_policy_prob}, n_reco=n_reco,
-                                n_items=n_hotel, greedy=False)
+        nullPolicy = MultinomialPolicy({"A": null_policy_prob}, n_reco=n_reco,
+                                       n_items=n_hotel, greedy=False)
 
         env = BinaryDiversEnvironment(0.5, 0.25, (0.6, 0.4), n_hotel_per_group)
 

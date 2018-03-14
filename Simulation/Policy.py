@@ -2,7 +2,8 @@ from abc import abstractmethod
 
 import numpy as np
 from collections import defaultdict
-from itertools import groupby
+import itertools
+from Utils import *
 
 """
 Classes represent policies that have recommend function mapping from context to recommendation(treatment)
@@ -32,23 +33,39 @@ Sample items without replacement based on pre-define probability
 """
 
 
-class ProbPolicy(Policy):
-    def __init__(self, prob_dist, n_items, n_reco, greedy=True):
+class MultinomialPolicy(Policy):
+    def __init__(self, item_weights, n_items, n_reco, temperature=1.0, greedy=False):
         """
-        :param prob_dist: probability distribution over items
+        :param item_weights: probability distribution over items
         :param greedy: if greedy is true -> recommend items which have the highest probabilities
         """
-        super(ProbPolicy, self).__init__(n_items, n_reco)
-        self.prob = prob_dist
+        super(MultinomialPolicy, self).__init__(n_items, n_reco)
+        self.item_weights = item_weights
         self.greedy = greedy
+        self.tau = temperature
 
-    def recommend(self, context):
-        cur_dist = self.prob[context]
+    def get_propensity(self, multinomial, reco):
+        """
+        Calculate probability of given recommendation set
+        """
+        prob = 1.0
+        current_denom = multinomial.sum()
+        for p in range(self.n_reco):
+            prob *= (multinomial[reco[p]] / current_denom)
+            current_denom -= multinomial[reco[p]]
+            if current_denom <= 0:
+                break
+
+        return prob
+
+    def recommend(self, context_features):
+        multinomial = softmax(np.matmul(context_features, self.item_weights.T), tau=self.tau, axis=1)
+
         if self.greedy:
-            reco = np.argsort(-cur_dist, kind='mergesort')[:self.n_reco]
+            reco = np.argsort(-multinomial, kind='mergesort')[:self.n_reco]
         else:
-            reco = np.random.choice(len(cur_dist), self.n_reco, p=cur_dist, replace=False)
-        return reco
+            reco = np.random.choice(len(multinomial), self.n_reco, p=multinomial, replace=False)
+        return reco, multinomial
 
 
 """
@@ -85,7 +102,7 @@ class MostCommonByUserPolicy(Policy):
         self.n_items = n_items
 
     def get_mostpopular(self, sim_data):
-        groupData = groupby(sorted(sim_data, key=lambda x: x['x']), key=lambda x: x['x'])
+        groupData = itertools.groupby(sorted(sim_data, key=lambda x: x['x']), key=lambda x: x['x'])
         for x, data in groupData:
             book_hotel = [d['h'] for d in data if d['r'] > 0]
             hotel_booking = defaultdict(int)

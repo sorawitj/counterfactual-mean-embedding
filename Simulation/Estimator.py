@@ -4,9 +4,10 @@ import numpy as np
 import itertools
 import scipy.linalg
 import pandas as pd
-
+from Policy import *
 from scipy.optimize import lsq_linear, nnls
 from scipy.spatial.distance import pdist
+import tensorflow as tf
 
 """
 Classes that represent different policy estimators for simulated experiments
@@ -35,8 +36,33 @@ class DirectEstimator(Estimator):
         return "direct_estimator"
 
     def estimate(self, sim_data):
-        expReward = sim_data.groupby(['context', 'new_reco'])['null_reward'].agg(['mean', 'count'])
-        expReward = (expReward['mean'] * expReward['count']).sum()
+        sim_data = sim_data.copy()
+        context_dim = np.shape(sim_data['context_vec'][0])[0]
+        reco_dim = np.shape(sim_data['null_reco_vec'][0])[0]
+        hidden_units = [20]
+        feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
+                           tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
+        classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
+                                                feature_columns=feature_columns,
+                                                optimizer='Adam',
+                                                dropout=0.2)
+
+        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                       'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, sim_data['null_reward'].as_matrix(),
+                                                            num_epochs=100, shuffle=True)
+        classifier.train(input_fn=train_input_fn)
+
+        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                       'reco_vec': np.stack(sim_data['new_reco_vec'].as_matrix())}
+        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, num_epochs=1, shuffle=False)
+        prediction = classifier.predict(pred_input_fn)
+        total_reward = 0
+        n = 0
+        for p in prediction:
+            total_reward += p['logistic'][0]
+            n += 1
+        expReward = total_reward / n
 
         return expReward
 
@@ -46,7 +72,7 @@ class IPSEstimator(Estimator):
     def name(self):
         return "ips_estimator"
 
-    def __init__(self, n_reco, null_policy, new_policy):
+    def __init__(self, n_reco: int, null_policy: MultinomialPolicy, new_policy: MultinomialPolicy):
         """
         :param n_reco: number of recommendation
         :param null_policy: a policy used to generate data
@@ -58,47 +84,42 @@ class IPSEstimator(Estimator):
         self.null_policy = null_policy
         self.new_policy = new_policy
 
-        self.null_prob_dist = [self.get_prob_dist(i, self.null_policy) for i in np.arange(len(null_policy.prob))]
-        self.new_prob_dist = [self.get_prob_dist(i, self.new_policy) for i in np.arange(len(new_policy.prob))]
+    # def get_prob_dist(self, context, policy):
+    #     """
+    #     Calculate probability distribution over set of permutation of items
+    #     :param context: a string represent user
+    #     :param policy: any policy
+    #     :return: an array mapping from permutation of item -> probability, e.x. probDist[(1, 2, 3)]: 0.002
+    #     """
+    #     numAllowedDocs = policy.n_items
+    #     currentDistribution = policy.prob[context]
+    #     validDocs = self.n_reco
+    #
+    #     probDist = np.zeros(tuple([numAllowedDocs for p in range(validDocs)]),
+    #                         dtype=np.float32)
+    #     for permutation in itertools.permutations(range(numAllowedDocs), validDocs):
+    #         currentDenom = currentDistribution.sum(dtype=np.longdouble)
+    #         prob = 1.0
+    #         for p in range(validDocs):
+    #             prob *= (currentDistribution[permutation[p]] / currentDenom)
+    #             currentDenom -= currentDistribution[permutation[p]]
+    #             if currentDenom <= 0:
+    #                 break
+    #         probDist[tuple(permutation)] = prob
+    #     return probDist
 
-    def get_prob_dist(self, context, policy):
-        """
-        Calculate probability distribution over set of permutation of items
-        :param context: a string represent user
-        :param policy: any policy
-        :return: an array mapping from permutation of item -> probability, e.x. probDist[(1, 2, 3)]: 0.002
-        """
-        numAllowedDocs = policy.n_items
-        currentDistribution = policy.prob[context]
-        validDocs = self.n_reco
+    def single_estimate(self, row):
+        nullProb = self.null_policy.get_propensity(row.null_multinomial, row.null_reco)
+        newProb = self.new_policy.get_propensity(row.new_multinomial, row.null_reco)
 
-        probDist = np.zeros(tuple([numAllowedDocs for p in range(validDocs)]),
-                            dtype=np.float32)
-        for permutation in itertools.permutations(range(numAllowedDocs), validDocs):
-            currentDenom = currentDistribution.sum(dtype=np.longdouble)
-            prob = 1.0
-            for p in range(validDocs):
-                prob *= (currentDistribution[permutation[p]] / currentDenom)
-                currentDenom -= currentDistribution[permutation[p]]
-                if currentDenom <= 0:
-                    break
-            probDist[tuple(permutation)] = prob
-        return probDist
-
-    def single_estimate(self, context, null_reco, null_reward, new_reco):
-        nullProb = self.null_prob_dist[context][tuple(null_reco)]
-        newProb = self.new_prob_dist[context][tuple(null_reco)]
-
-        return null_reward * newProb / nullProb
+        return row.null_reward * newProb / nullProb
 
     def estimate(self, sim_data):
-        expReward = sim_data.apply(
-            lambda x: self.single_estimate(x.context, x.null_reco, x.null_reward, x.new_reco), axis=1).sum()
-
-        return expReward
+        expReward = applyParallel(sim_data, self.single_estimate)
+        return np.mean(expReward)
 
 
-class SlateEstimator(IPSEstimator):
+class SlateEstimator(Estimator):
     @property
     def name(self):
         return "slate_estimator"
@@ -107,7 +128,6 @@ class SlateEstimator(IPSEstimator):
 
         self.n_reco = n_reco
         self.null_policy = null_policy
-        self.null_prob_dist = [self.get_prob_dist(i, self.null_policy) for i in np.arange(len(null_policy.prob))]
 
     def gamma_inverse(self, context):
         """
@@ -116,27 +136,27 @@ class SlateEstimator(IPSEstimator):
         :return: gamma matrix inverse
         """
 
-        numAllowedDocs = self.null_policy.n_items
+        n_items = self.null_policy.n_items
 
-        validDocs = self.n_reco
+        n_reco = self.n_reco
 
-        gamma = np.zeros((numAllowedDocs * validDocs, numAllowedDocs * validDocs),
+        gamma = np.zeros((n_items * n_reco, n_items * n_reco),
                          dtype=np.longdouble)
-        for p in range(validDocs):
-            currentStart = p * numAllowedDocs
-            currentEnd = p * numAllowedDocs + numAllowedDocs
-            currentMarginals = np.sum(self.prob_dist[context], axis=tuple([q for q in range(validDocs) if q != p]),
+        for p in range(n_reco):
+            currentStart = p * n_items
+            currentEnd = p * n_items + n_items
+            currentMarginals = np.sum(self.prob_dist[context], axis=tuple([q for q in range(n_reco) if q != p]),
                                       dtype=np.longdouble)
             gamma[currentStart:currentEnd, currentStart:currentEnd] = np.diag(currentMarginals)
 
-        for p in range(validDocs):
-            for q in range(p + 1, validDocs):
-                currentRowStart = p * numAllowedDocs
-                currentRowEnd = p * numAllowedDocs + numAllowedDocs
-                currentColumnStart = q * numAllowedDocs
-                currentColumnEnd = q * numAllowedDocs + numAllowedDocs
+        for p in range(n_reco):
+            for q in range(p + 1, n_reco):
+                currentRowStart = p * n_items
+                currentRowEnd = p * n_items + n_items
+                currentColumnStart = q * n_items
+                currentColumnEnd = q * n_items + n_items
                 pairMarginals = np.sum(self.prob_dist[context],
-                                       axis=tuple([r for r in range(validDocs) if r != p and r != q]),
+                                       axis=tuple([r for r in range(n_reco) if r != p and r != q]),
                                        dtype=np.longdouble)
                 np.fill_diagonal(pairMarginals, 0)
 
@@ -146,19 +166,19 @@ class SlateEstimator(IPSEstimator):
         return scipy.linalg.pinv(gamma, cond=1e-15, rcond=1e-15)
 
     def single_estimate(self, context, null_reco, null_reward, new_reco):
-        numAllowedDocs = self.null_policy.n_items
-        validDocs = min(numAllowedDocs, self.n_reco)
-        vectorDimension = validDocs * numAllowedDocs
-        tempRange = range(validDocs)
+        n_items = self.null_policy.n_items
+        n_reco = min(n_items, self.n_reco)
+        n_dim = n_reco * n_items
+        temp_range = range(n_reco)
 
-        exploredMatrix = np.zeros((validDocs, numAllowedDocs), dtype=np.longdouble)
-        exploredMatrix[tempRange, list(null_reco[0:validDocs])] = null_reward
+        exploredMatrix = np.zeros((n_reco, n_items), dtype=np.longdouble)
+        exploredMatrix[temp_range, list(null_reco[0:n_reco])] = null_reward
 
-        newMatrix = np.zeros((validDocs, numAllowedDocs), dtype=np.longdouble)
-        newMatrix[tempRange, list(new_reco[0:validDocs])] = 1
+        newMatrix = np.zeros((n_reco, n_items), dtype=np.longdouble)
+        newMatrix[temp_range, list(new_reco[0:n_reco])] = 1
 
-        posRelVector = exploredMatrix.reshape(vectorDimension)
-        newSlateVector = newMatrix.reshape(vectorDimension)
+        posRelVector = exploredMatrix.reshape(n_dim)
+        newSlateVector = newMatrix.reshape(n_dim)
 
         estimatedPhi = np.dot(self.gamma_inverse(context), posRelVector)
 
@@ -297,4 +317,4 @@ class CMEstimator(Estimator):
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
-        return len(sim_data) * np.dot(beta_vec, null_reward)
+        return np.dot(beta_vec, null_reward)
