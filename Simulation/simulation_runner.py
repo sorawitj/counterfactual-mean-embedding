@@ -28,8 +28,9 @@ def simulate_data(null_policy, new_policy, environment, item_vectors, seed):
     new_reward = environment.get_reward(context_vec, new_reco)
 
     observation = {"context_vec": context_vec, "null_reco": tuple(null_reco),
-                   "null_reco_vec": null_reco_vec, "null_reward": null_reward, "new_reco": tuple(new_reco),
-                   "null_multinomial": null_multinomial, "new_multinomial": new_multinomial,
+                   "null_reco_vec": null_reco_vec, "null_reward": null_reward,
+                   "new_reco": tuple(new_reco), "null_multinomial": null_multinomial,
+                   "new_multinomial": new_multinomial,
                    "new_reco_vec": new_reco_vec, "new_reward": new_reward}
     return observation
 
@@ -56,7 +57,7 @@ def compare_estimators(estimators, null_policy, new_policy, environment, item_ve
     return_df = pd.DataFrame(columns=[e.name for e in estimators] + ['actual_value'])
     for i in range(n_iterations):
         seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
-        responses = joblib.Parallel(n_jobs=-1, verbose=50)(
+        responses = joblib.Parallel(n_jobs=-2)(
             joblib.delayed(simulate_data)(null_policy, new_policy, environment, item_vectors, seeds[i]) for i in
             range(config['n_observation'])
         )
@@ -66,6 +67,8 @@ def compare_estimators(estimators, null_policy, new_policy, environment, item_ve
         actual_value = sim_data.new_reward.mean()
         estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
         estimated_values['actual_value'] = actual_value
+        estimated_values['null_reward'] = sim_data.null_reward.mean()
+        print(estimated_values)
         return_df = return_df.append(estimated_values, ignore_index=True)
 
     return return_df
@@ -80,8 +83,9 @@ if __name__ == "__main__":
         "tau": 0.01  # almost uniform
     }
 
-    new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
     null_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+    new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+    new_item_vectors = -null_item_vectors
 
     # The policy we use to generate sim data
     null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
@@ -101,7 +105,7 @@ if __name__ == "__main__":
     params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
-    responses = joblib.Parallel(n_jobs=-1, verbose=50)(
+    responses = joblib.Parallel(n_jobs=-2, verbose=50)(
         joblib.delayed(simulate_data)(null_policy, new_policy, environment, env_item_vectors, seeds[i]) for i in
         range(config['n_observation'])
     )
@@ -128,8 +132,9 @@ if __name__ == "__main__":
      """
     estimators = [IPSEstimator(config['n_reco'], null_policy, new_policy),
                   CMEstimator(rbf_kernel, rbf_kernel, params[0]),
+                  CMEstimator2(rbf_kernel, rbf_kernel, params[0]),
                   DirectEstimator()]
 
-    result_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 5)
+    result_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 3)
     print(result_df)
     result_df.plot.line(use_index=True)

@@ -59,7 +59,7 @@ class MultinomialPolicy(Policy):
         return prob
 
     def recommend(self, context_features):
-        multinomial = softmax(np.matmul(context_features, self.item_weights.T), tau=self.tau, axis=1)
+        multinomial = softmax(np.matmul(context_features, self.item_weights.T), tau=self.tau)
 
         if self.greedy:
             reco = np.argsort(-multinomial, kind='mergesort')[:self.n_reco]

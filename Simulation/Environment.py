@@ -29,18 +29,23 @@ class Environment(object):
         :param reco: a permutation of item
         :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
         """
-        click_probs = softmax(np.matmul(context_features, self.item_vectors[reco].T))
-        click = np.random.choice(np.arange(len(click_probs)), p=click_probs)
+        # click_probs = softmax(np.matmul(context_features, self.item_vectors[reco].T))
+        # click = np.random.choice(np.arange(len(click_probs)), p=click_probs)
+
+        click_probs = expit(np.matmul(context_features, self.item_vectors[reco].T))
+        clicks = np.random.binomial(1, p=click_probs)
+
         if self.examine_rate is None:
             examine = len(reco)
         else:
             examine = np.random.geometric(self.examine_rate, 1)
-        # non_zero = click.nonzero()[0]
-        # if non_zero.size > 0:
-        #     reward = 1.0 / (non_zero[0] + 1)
-        # else:
-        #     reward = 0.0
-        reward = 1.0 / (click + 1)
+        non_zero = clicks.nonzero()[0]
+        if non_zero.size > 0:
+            reward = 1.0 / (non_zero[0] + 1)
+        else:
+            reward = 0.0
+        # reward = 1.0 / (clicks + 1)
+        # reward = average_precision(clicks)
         return reward
 
 
@@ -54,9 +59,11 @@ class AvgEnvironment(object):
         """
         self.item_vectors = item_vectors
         self.context_dim = context_dim
+        self.context = np.random.normal(size=(10, self.context_dim))
 
     def get_context(self):
-        return np.random.normal(0, 1.0, size=(self.context_dim,))
+        idx = np.random.choice(self.context.shape[0])
+        return self.context[idx, :]
 
     def get_reward(self, context_features, reco):
         r"""

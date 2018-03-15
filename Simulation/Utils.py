@@ -49,7 +49,7 @@ def softmax(X, tau=1.0, axis=None):
 
 
 def applyParallel(df: pd.DataFrame, func):
-    retLst = Parallel(n_jobs=-1, verbose=50)(delayed(func)(row) for i, row in df.iterrows())
+    retLst = Parallel(n_jobs=-2)(delayed(func)(row) for i, row in df.iterrows())
     return retLst
 
 
