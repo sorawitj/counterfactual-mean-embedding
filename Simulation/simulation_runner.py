@@ -84,22 +84,22 @@ if __name__ == "__main__":
     }
 
     null_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
-    new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+    # new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
     new_item_vectors = -null_item_vectors
 
     # The policy we use to generate sim data
-    null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
+    null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.1)
 
     # The target policy
     new_policy = MultinomialPolicy(new_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
 
-    # env_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
-    env_item_vectors = new_item_vectors
-    environment = Environment(env_item_vectors, config['context_dim'])
-    # environment = AvgEnvironment(env_item_vectors, config['context_dim'])
+    # env_item_vectors = np.random.normal(0, 0.1, size=(config['n_items'], config['context_dim']))
+    env_item_vectors = new_item_vectors # * np.random.uniform(size=new_item_vectors.shape)
+    # environment = Environment(env_item_vectors, config['context_dim'])
+    environment = AvgEnvironment(env_item_vectors, config['context_dim'])
     # environment = NNEnvironment(env_item_vectors, config['context_dim'])
 
-    reg_pow = np.arange(0, 1)
+    reg_pow = np.arange(-1, 0)
     reg_params = (10.0 ** reg_pow) / config['n_observation']
     bw_params = [(10.0 ** -1)]
     params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
@@ -131,10 +131,10 @@ if __name__ == "__main__":
      Comparing between estimators
      """
     estimators = [IPSEstimator(config['n_reco'], null_policy, new_policy),
-                  CMEstimator(rbf_kernel, rbf_kernel, params[0]),
+                  # CMEstimator(rbf_kernel, rbf_kernel, params[0]),
                   CMEstimator2(rbf_kernel, rbf_kernel, params[0]),
                   DirectEstimator()]
 
-    result_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 3)
+    result_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 5)
     print(result_df)
     result_df.plot.line(use_index=True)
