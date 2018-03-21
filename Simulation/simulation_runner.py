@@ -82,59 +82,62 @@ if __name__ == "__main__":
         "context_dim": 10,
         "tau": 0.01  # almost uniform
     }
+    result_df = dict()
 
-    null_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
-    # new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
-    new_item_vectors = -null_item_vectors
+    new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+    for multiplier in [0.0, 0.5, 0.75, 1.25, 1.5, 1.75, 2.0]:
+        # null_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+        null_item_vectors = new_item_vectors - multiplier * new_item_vectors
 
-    # The policy we use to generate sim data
-    null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.1)
+        # The policy we use to generate sim data
+        null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.1)
 
-    # The target policy
-    new_policy = MultinomialPolicy(new_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
+        # The target policy
+        new_policy = MultinomialPolicy(new_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
 
-    # env_item_vectors = np.random.normal(0, 0.1, size=(config['n_items'], config['context_dim']))
-    env_item_vectors = new_item_vectors # * np.random.uniform(size=new_item_vectors.shape)
-    # environment = Environment(env_item_vectors, config['context_dim'])
-    environment = AvgEnvironment(env_item_vectors, config['context_dim'])
-    # environment = NNEnvironment(env_item_vectors, config['context_dim'])
+        # env_item_vectors = np.random.normal(0, 0.1, size=(config['n_items'], config['context_dim']))
+        env_item_vectors = 0.5*new_item_vectors  # * np.random.uniform(size=new_item_vectors.shape)
+        # environment = Environment(env_item_vectors, config['context_dim'])
+        environment = AvgEnvironment(env_item_vectors, config['context_dim'])
+        # environment = NNEnvironment(env_item_vectors, config['context_dim'])
 
-    reg_pow = np.arange(-1, 0)
-    reg_params = (10.0 ** reg_pow) / config['n_observation']
-    bw_params = [(10.0 ** -1)]
-    params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
+        reg_pow = np.arange(-1, 0)
+        reg_params = (10.0 ** reg_pow) / config['n_observation']
+        bw_params = [(10.0 ** -1)]
+        params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
 
-    seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
-    responses = joblib.Parallel(n_jobs=-2, verbose=50)(
-        joblib.delayed(simulate_data)(null_policy, new_policy, environment, env_item_vectors, seeds[i]) for i in
-        range(config['n_observation'])
-    )
+        seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
+        responses = joblib.Parallel(n_jobs=-2, verbose=50)(
+            joblib.delayed(simulate_data)(null_policy, new_policy, environment, env_item_vectors, seeds[i]) for i in
+            range(config['n_observation'])
+        )
 
-    sim_data = pd.DataFrame(responses)
+        sim_data = pd.DataFrame(responses)
 
-    # ips = IPSEstimator(config['n_reco'], null_policy, new_policy)
-    # ips.estimate(sim_data)
+        # ips = IPSEstimator(config['n_reco'], null_policy, new_policy)
+        # ips.estimate(sim_data)
 
-    # """
-    #  CMEEstimator grid search
-    #  """
-    # sim_data = simulate_data(null_policy, new_policy, environment, true_context_vector, item_vectors,
-    #                          config['n_observation'])
-    #
-    # cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
-    # grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
-    #
-    # grid_search_df.plot.line(x='param', y='estimated_value')
-    # print(grid_search_df)
+        # """
+        #  CMEEstimator grid search
+        #  """
+        # sim_data = simulate_data(null_policy, new_policy, environment, true_context_vector, item_vectors,
+        #                          config['n_observation'])
+        #
+        # cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
+        # grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
+        #
+        # grid_search_df.plot.line(x='param', y='estimated_value')
+        # print(grid_search_df)
 
-    """
-     Comparing between estimators
-     """
-    estimators = [IPSEstimator(config['n_reco'], null_policy, new_policy),
-                  # CMEstimator(rbf_kernel, rbf_kernel, params[0]),
-                  CMEstimator2(rbf_kernel, rbf_kernel, params[0]),
-                  DirectEstimator()]
+        """
+         Comparing between estimators
+         """
+        estimators = [IPSEstimator(config['n_reco'], null_policy, new_policy),
+                      # CMEstimator(rbf_kernel, rbf_kernel, params[0]),
+                      CMEstimator2(rbf_kernel, rbf_kernel, params[0]),
+                      DirectEstimator()]
 
-    result_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 5)
-    print(result_df)
-    result_df.plot.line(use_index=True)
+        compare_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 5)
+        result_df[multiplier] = compare_df
+        # print(result_df)
+        # result_df.plot.line(use_index=True)
