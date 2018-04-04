@@ -8,7 +8,7 @@ from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 import joblib
 
 
-def simulate_data(null_policy, new_policy, environment, item_vectors, seed):
+def simulate_data(null_policy, target_policy, environment, item_vectors, seed):
     """
     simulate data given policy, environment and set of context
     :return: observations
@@ -16,27 +16,25 @@ def simulate_data(null_policy, new_policy, environment, item_vectors, seed):
     np.random.seed(seed)
     context_vec = environment.get_context()
     null_reco, null_multinomial = null_policy.recommend(context_vec)
-    # recommendation is represented by an average over recommended item vectors
-    # null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
+    # recommendation is represented by a concatenation of recommended item vectors
     null_reco_vec = np.concatenate(item_vectors[null_reco])
     null_reward = environment.get_reward(context_vec, null_reco)
 
-    new_reco, new_multinomial = new_policy.recommend(context_vec)
-    # recommendation is represented by an average over recommended item vectors
-    # new_reco_vec = np.mean(item_vectors[new_reco], axis=0)
-    new_reco_vec = np.concatenate(item_vectors[new_reco])
-    new_reward = environment.get_reward(context_vec, new_reco)
+    target_reco, target_multinomial = target_policy.recommend(context_vec)
+    # recommendation is represented by a concatenation of recommended item vectors
+    target_reco_vec = np.concatenate(item_vectors[target_reco])
+    target_reward = environment.get_reward(context_vec, target_reco)
 
     observation = {"context_vec": context_vec, "null_reco": tuple(null_reco),
                    "null_reco_vec": null_reco_vec, "null_reward": null_reward,
-                   "new_reco": tuple(new_reco), "null_multinomial": null_multinomial,
-                   "new_multinomial": new_multinomial,
-                   "new_reco_vec": new_reco_vec, "new_reward": new_reward}
+                   "target_reco": tuple(target_reco), "null_multinomial": null_multinomial,
+                   "target_multinomial": target_multinomial,
+                   "target_reco_vec": target_reco_vec, "target_reward": target_reward}
     return observation
 
 
 def grid_search(params, estimator, sim_data, n_iterations):
-    actual_value = sim_data.new_reward.mean()
+    actual_value = sim_data.target_reward.mean()
     return_df = pd.DataFrame(columns=['param', 'estimated_value', 'actual_value', 'error'])
     for param in params:
         estimated_values = []
@@ -52,22 +50,24 @@ def grid_search(params, estimator, sim_data, n_iterations):
     return return_df
 
 
-def compare_estimators(estimators, null_policy, new_policy, environment, item_vectors,
+def compare_estimators(estimators, null_policy, target_policy, environment, item_vectors,
                        config, n_iterations=1):
     return_df = pd.DataFrame(columns=[e.name for e in estimators] + ['actual_value'])
     for i in range(n_iterations):
         seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
         responses = joblib.Parallel(n_jobs=-2)(
-            joblib.delayed(simulate_data)(null_policy, new_policy, environment, item_vectors, seeds[i]) for i in
+            joblib.delayed(simulate_data)(null_policy, target_policy, environment, item_vectors, seeds[i]) for i in
             range(config['n_observation'])
         )
 
         sim_data = pd.DataFrame(responses)
 
-        actual_value = sim_data.new_reward.mean()
+        actual_value = sim_data.target_reward.mean()
         estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
         estimated_values['actual_value'] = actual_value
         estimated_values['null_reward'] = sim_data.null_reward.mean()
+        for e in estimators:
+            estimated_values[e.name + '_square_error'] = (estimated_values[e.name] - actual_value) ** 2
         print(estimated_values)
         return_df = return_df.append(estimated_values, ignore_index=True)
 
@@ -79,65 +79,33 @@ if __name__ == "__main__":
         "n_items": 40,
         "n_reco": 5,
         "n_observation": 5000,
-        "context_dim": 10,
-        "tau": 0.01  # almost uniform
+        "context_dim": 10
     }
     result_df = dict()
 
-    new_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
+    target_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
     for multiplier in [0.0, 0.5, 0.75, 1.25, 1.5, 1.75, 2.0]:
-        # null_item_vectors = np.random.normal(0, 1, size=(config['n_items'], config['context_dim']))
-        null_item_vectors = new_item_vectors - multiplier * new_item_vectors
+        null_item_vectors = target_item_vectors - multiplier * target_item_vectors
 
         # The policy we use to generate sim data
         null_policy = MultinomialPolicy(null_item_vectors, config['n_items'], config['n_reco'], temperature=0.1)
 
         # The target policy
-        new_policy = MultinomialPolicy(new_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
+        target_policy = MultinomialPolicy(target_item_vectors, config['n_items'], config['n_reco'], temperature=0.5)
 
-        # env_item_vectors = np.random.normal(0, 0.1, size=(config['n_items'], config['context_dim']))
-        env_item_vectors = 0.5*new_item_vectors  # * np.random.uniform(size=new_item_vectors.shape)
-        # environment = Environment(env_item_vectors, config['context_dim'])
+        env_item_vectors = 0.5 * target_item_vectors
         environment = AvgEnvironment(env_item_vectors, config['context_dim'])
-        # environment = NNEnvironment(env_item_vectors, config['context_dim'])
 
         reg_pow = np.arange(-1, 0)
         reg_params = (10.0 ** reg_pow) / config['n_observation']
-        bw_params = [(10.0 ** -1)]
-        params = [[r, b1, b2] for r in reg_params for b1 in bw_params for b2 in bw_params]
-
-        seeds = np.random.randint(np.iinfo(np.int32).max, size=config['n_observation'])
-        responses = joblib.Parallel(n_jobs=-2, verbose=50)(
-            joblib.delayed(simulate_data)(null_policy, new_policy, environment, env_item_vectors, seeds[i]) for i in
-            range(config['n_observation'])
-        )
-
-        sim_data = pd.DataFrame(responses)
-
-        # ips = IPSEstimator(config['n_reco'], null_policy, new_policy)
-        # ips.estimate(sim_data)
-
-        # """
-        #  CMEEstimator grid search
-        #  """
-        # sim_data = simulate_data(null_policy, new_policy, environment, true_context_vector, item_vectors,
-        #                          config['n_observation'])
-        #
-        # cmEstimator = CMEstimator(rbf_kernel, rbf_kernel, None)
-        # grid_search_df = grid_search(params, cmEstimator, sim_data, n_iterations=1)
-        #
-        # grid_search_df.plot.line(x='param', y='estimated_value')
-        # print(grid_search_df)
-
+        bw_params = 10.0 ** -1
+        params = [reg_params, bw_params, bw_params]
         """
          Comparing between estimators
          """
-        estimators = [IPSEstimator(config['n_reco'], null_policy, new_policy),
-                      # CMEstimator(rbf_kernel, rbf_kernel, params[0]),
-                      CMEstimator2(rbf_kernel, rbf_kernel, params[0]),
-                      DirectEstimator()]
+        estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
+                      CMEstimator(rbf_kernel, rbf_kernel, params), DirectEstimator()]
 
-        compare_df = compare_estimators(estimators, null_policy, new_policy, environment, env_item_vectors, config, 5)
+        compare_df = compare_estimators(estimators, null_policy, target_policy, environment, env_item_vectors, config,
+                                        5)
         result_df[multiplier] = compare_df
-        # print(result_df)
-        # result_df.plot.line(use_index=True)
