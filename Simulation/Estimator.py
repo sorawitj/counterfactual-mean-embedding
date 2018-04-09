@@ -5,6 +5,9 @@ import itertools
 import scipy.linalg
 import pandas as pd
 
+from scipy.optimize import lsq_linear, nnls
+from scipy.spatial.distance import pdist
+
 """
 Classes that represent different policy estimators for simulated experiments
 """
@@ -20,8 +23,17 @@ class Estimator(object):
         """
         pass
 
+    @property
+    @abstractmethod
+    def name(self):
+        pass
+
 
 class DirectEstimator(Estimator):
+    @property
+    def name(self):
+        return "direct_estimator"
+
     def estimate(self, sim_data):
         expReward = sim_data.groupby(['context', 'new_reco'])['null_reward'].agg(['mean', 'count'])
         expReward = (expReward['mean'] * expReward['count']).sum()
@@ -30,6 +42,10 @@ class DirectEstimator(Estimator):
 
 
 class IPSEstimator(Estimator):
+    @property
+    def name(self):
+        return "ips_estimator"
+
     def __init__(self, n_reco, null_policy, new_policy):
         """
         :param n_reco: number of recommendation
@@ -82,6 +98,10 @@ class IPSEstimator(Estimator):
 
 
 class SlateEstimator(IPSEstimator):
+    @property
+    def name(self):
+        return "slate_estimator"
+
     def __init__(self, n_reco, null_policy):
 
         self.n_reco = n_reco
@@ -209,48 +229,76 @@ class SlateEstimatorImproved(SlateEstimator):
 The counterfactual mean embedding estimator 
 """
 
+
 class CMEstimator(Estimator):
+<<<<<<< HEAD
     
     def __init__(self, context_kernel, recom_kernel, params=(1e-5,1.0,1.0)):
+=======
+    @property
+    def name(self):
+        return "cme_estimator"
+
+    def __init__(self, context_kernel, recom_kernel, params):
+>>>>>>> c1ff08e642866b37525d6b31cafa180ba39c4b78
         """
-        :param context_kernel: the kernel function for the context variable
-        :param recom_kernel: the kernel function for the recommendation
-        :param params: all parameters including regularization parameter and kernel parameters
-        """
+         :param context_kernel: the kernel function for the context variable
+         :param recom_kernel: the kernel function for the recommendation
+         :param params: all parameters including regularization parameter and kernel parameters
+         """
 
         self.context_kernel = context_kernel
         self.recom_kernel = recom_kernel
         self.params = params
 
+    @property
+    def params(self):
+        return self.__params
+
+    @params.setter
+    def params(self, value):
+        self.__params = value
+
     def estimate(self, sim_data):
         """
-        Calculate and return a coefficient vector (beta) of the counterfactual
-        mean embedding of reward distribution.
-        """
+         Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
+         """
 
         # extract the regularization and kernel parameters
-        reg_param     = self.params[0]
+        reg_param = self.params[0]
         context_param = self.params[1]
-        recom_param   = self.params[2]
-
+        recom_param = self.params[2]
+        
         null_reward = sim_data.null_reward
         context_vec = np.stack(sim_data.context_vec.as_matrix())
         null_reco_vec = np.stack(sim_data.null_reco_vec.as_matrix())
         new_reco_vec = np.stack(sim_data.new_reco_vec.as_matrix())
 
-        contextMatrix    = self.context_kernel(context_vec, context_vec, context_param)
-        newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
-        recomMatrix      = self.recom_kernel(null_reco_vec, null_reco_vec, recom_param)
-        newRecomMatrix   = self.recom_kernel(new_reco_vec, new_reco_vec, recom_param)
+        # use median heuristic for the bandwidth parameters
+        context_param      = 0.5/np.median(pdist(context_vec,'seuclidean'))
+        null_recom_param   = (0.5*context_param)/np.median(pdist(null_reco_vec,'seuclidean'))
+        new_recom_param    = (0.5*recom_param)/np.median(pdist(new_reco_vec,'seuclidean'))
         
+        contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
+        newContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
+        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, null_recom_param)
+        newRecomMatrix = self.recom_kernel(new_reco_vec, new_reco_vec, new_recom_param)
+
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
         m = sim_data["new_reco"].shape[0]
         n = sim_data["null_reco"].shape[0]
         b = np.dot(np.multiply(newContextMatrix, newRecomMatrix), np.repeat(1. / m, m, axis=0))
-        beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
 
+        # solve a linear least-square
+        beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+        #beta_vec[beta_vec < 0] = 0.0
+
+        # solve a linear least-squares problem with bounds on the weight vector
+        #beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf), lsmr_tol='auto', max_iter=40, verbose=2).x
+
+        # use non-negative least square solver
+        #beta_vec, res = nnls(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+        
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
         return np.dot(beta_vec, null_reward)
-
-###
