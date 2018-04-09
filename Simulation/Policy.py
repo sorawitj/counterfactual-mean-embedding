@@ -34,13 +34,14 @@ Sample items without replacement based on pre-define probability
 
 
 class MultinomialPolicy(Policy):
-    def __init__(self, item_weights, n_items, n_reco, temperature=1.0, greedy=False):
+    def __init__(self, item_vectors, estimated_vector_vectors, n_items, n_reco, temperature=1.0, greedy=False):
         """
-        :param item_weights: probability distribution over items
+        :param item_vectors: probability distribution over items
         :param greedy: if greedy is true -> recommend items which have the highest probabilities
         """
         super(MultinomialPolicy, self).__init__(n_items, n_reco)
-        self.item_weights = item_weights
+        self.item_vectors = item_vectors
+        self.estimated_vector_vectors = estimated_vector_vectors
         self.greedy = greedy
         self.tau = temperature
 
@@ -58,14 +59,15 @@ class MultinomialPolicy(Policy):
 
         return prob
 
-    def recommend(self, context_features):
-        multinomial = softmax(np.matmul(context_features, self.item_weights.T), tau=self.tau)
+    def recommend(self, user):
+        user_vector = self.estimated_vector_vectors[user, :]
+        multinomial = softmax(np.matmul(user_vector, self.item_vectors.T), tau=self.tau)
 
         if self.greedy:
             reco = np.argsort(-multinomial, kind='mergesort')[:self.n_reco]
         else:
             reco = np.random.choice(len(multinomial), self.n_reco, p=multinomial, replace=False)
-        return reco, multinomial
+        return reco, multinomial, user_vector
 
 
 """

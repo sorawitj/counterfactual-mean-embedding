@@ -8,6 +8,7 @@ from Policy import *
 from scipy.optimize import lsq_linear, nnls
 from scipy.spatial.distance import pdist
 import tensorflow as tf
+from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 
 """
 Classes that represent different policy estimators for simulated experiments
@@ -39,7 +40,7 @@ class DirectEstimator(Estimator):
         sim_data = sim_data.copy()
         context_dim = np.shape(sim_data['context_vec'][0])[0]
         reco_dim = np.shape(sim_data['null_reco_vec'][0])[0]
-        hidden_units = [20]
+        hidden_units = [40]
         feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
                            tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
         classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
@@ -50,12 +51,12 @@ class DirectEstimator(Estimator):
         numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
                        'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
         train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, sim_data['null_reward'].as_matrix(),
-                                                            num_epochs=100, shuffle=True)
+                                                            batch_size=1024, num_epochs=100, shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
         numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
                        'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
-        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, num_epochs=1, shuffle=False)
+        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=1024, num_epochs=1, shuffle=False)
         prediction = classifier.predict(pred_input_fn)
         total_reward = 0
         n = 0
@@ -77,7 +78,6 @@ class IPSEstimator(Estimator):
         :param n_reco: number of recommendation
         :param null_policy: a policy used to generate data
         :param target_policy: a policy that we want to estimate its reward
-
         """
         self.n_reco = n_reco
         self.null_policy = null_policy
@@ -90,7 +90,64 @@ class IPSEstimator(Estimator):
         return row.null_reward * targetProb / nullProb
 
     def estimate(self, sim_data):
-        expReward = applyParallel(sim_data, self.single_estimate)
+        expReward = sim_data.apply(self.single_estimate, axis=1)
+        # expReward = applyParallel(sim_data, self.single_estimate)
+        return np.mean(expReward)
+
+
+class DoublyRobustEstimator(IPSEstimator):
+    @property
+    def name(self):
+        return "doubly robust estimator"
+
+    def __init__(self, n_reco: int, null_policy: MultinomialPolicy, target_policy: MultinomialPolicy):
+        """
+        :param n_reco: number of recommendation
+        :param null_policy: a policy used to generate data
+        :param target_policy: a policy that we want to estimate its reward
+
+        """
+        super().__init__(n_reco, null_policy, target_policy)
+
+    def single_estimate(self, row):
+        nullProb = self.null_policy.get_propensity(row.null_multinomial, row.null_reco)
+        targetProb = self.target_policy.get_propensity(row.target_multinomial, row.null_reco)
+
+        estimated_reward = row.direct_pred + (row.null_reward - row.direct_pred) * targetProb / nullProb
+
+        return estimated_reward
+
+    def estimate(self, sim_data):
+        sim_data = sim_data.copy()
+        context_dim = np.shape(sim_data['context_vec'][0])[0]
+        reco_dim = np.shape(sim_data['null_reco_vec'][0])[0]
+        hidden_units = [40]
+        feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
+                           tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
+        classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
+                                                feature_columns=feature_columns,
+                                                optimizer='Adam',
+                                                dropout=0.2)
+
+        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                       'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, sim_data['null_reward'].as_matrix(),
+                                                            batch_size=1024, num_epochs=100, shuffle=True)
+        classifier.train(input_fn=train_input_fn)
+
+        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                       'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
+        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=1024, num_epochs=1, shuffle=False)
+        prediction = classifier.predict(pred_input_fn)
+
+        direct_predictions = []
+        for p in prediction:
+            direct_predictions.append(p['logistic'][0])
+
+        sim_data['direct_pred'] = direct_predictions
+        expReward = sim_data.apply(self.single_estimate, axis=1)
+        # expReward = applyParallel(sim_data, self.single_estimate)
+
         return np.mean(expReward)
 
 
@@ -112,6 +169,7 @@ class SlateEstimator(Estimator):
         """
 
         n_items = self.null_policy.n_items
+
         n_reco = self.n_reco
 
         gamma = np.zeros((n_items * n_reco, n_items * n_reco),
@@ -165,16 +223,11 @@ The counterfactual mean embedding estimator
 
 
 class CMEstimator(Estimator):
-<<<<<<< HEAD
-    
-    def __init__(self, context_kernel, recom_kernel, params=(1e-5,1.0,1.0)):
-=======
     @property
     def name(self):
         return "cme_estimator"
 
     def __init__(self, context_kernel, recom_kernel, params):
->>>>>>> c1ff08e642866b37525d6b31cafa180ba39c4b78
         """
          :param context_kernel: the kernel function for the context variable
          :param recom_kernel: the kernel function for the recommendation
@@ -209,9 +262,9 @@ class CMEstimator(Estimator):
         target_reco_vec = np.stack(sim_data.target_reco_vec.as_matrix())
 
         # use median heuristic for the bandwidth parameters
-        context_param = 0.5 / np.median(pdist(context_vec, 'seuclidean'))
-        null_recom_param = (0.5 * recom_param) / np.median(pdist(null_reco_vec, 'seuclidean'))
-        target_recom_param = (0.5 * recom_param) / np.median(pdist(target_reco_vec, 'seuclidean'))
+        context_param = 0.5 / np.median(pdist(context_vec, 'euclidean')) ** 2
+        null_recom_param = (0.5 * recom_param) / np.median(pdist(null_reco_vec, 'euclidean')) ** 2
+        target_recom_param = (0.5 * recom_param) / np.median(pdist(target_reco_vec, 'euclidean')) ** 2
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         targetContextMatrix = self.context_kernel(context_vec, context_vec, context_param)

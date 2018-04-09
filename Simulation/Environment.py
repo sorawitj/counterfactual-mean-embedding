@@ -57,7 +57,7 @@ class Environment(object):
 
 
 class AvgEnvironment(object):
-    def __init__(self, item_vectors, context_dim):
+    def __init__(self, item_vectors, user_vectors):
         r"""
         initialize simple environment
 
@@ -65,20 +65,19 @@ class AvgEnvironment(object):
         :param examine_rate:
         """
         self.item_vectors = item_vectors
-        self.context_dim = context_dim
-        self.context = np.random.normal(size=(10, self.context_dim))
+        self.user_vectors = user_vectors
 
     def get_context(self):
-        idx = np.random.choice(self.context.shape[0])
-        return self.context[idx, :]
+        return np.random.choice(self.user_vectors.shape[0])
 
-    def get_reward(self, context_features, reco):
+    def get_reward(self, user, reco):
         r"""
         generate a reward given user(context) and recommendation
         :param context: a string represent user
         :param reco: an avg vector of recommended items
         :return: 1 if the pick item is in the recommendation "and" user examine the pick item else 0
         """
+        context_features = self.user_vectors[user, :]
         reco_vector = np.mean(self.item_vectors[reco], axis=0)
         prob = expit(context_features.dot(reco_vector) + np.random.normal())
         reward = np.random.binomial(1, prob)
@@ -86,8 +85,8 @@ class AvgEnvironment(object):
 
 
 class NNEnvironment(AvgEnvironment):
-    def __init__(self, item_vectors, context_dim):
-        super().__init__(item_vectors, context_dim)
+    def __init__(self, item_vectors, user_vectors):
+        super().__init__(item_vectors, user_vectors)
 
     def get_reward(self, context_features, reco):
         reco_vector = np.mean(self.item_vectors[reco], axis=0)
