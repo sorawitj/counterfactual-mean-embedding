@@ -273,10 +273,10 @@ class CMEstimator(Estimator):
         target_reco_vec = np.stack(sim_data.target_reco_vec.as_matrix())
 
         # use median heuristic for the bandwidth parameters
-        context_param = 0.5 / np.median(pdist(context_vec, 'euclidean')) ** 2
-        null_recom_param = (0.5 * recom_param) / np.median(pdist(null_reco_vec, 'euclidean')) ** 2
-        target_recom_param = (0.5 * recom_param) / np.median(pdist(target_reco_vec, 'euclidean')) ** 2
-        recom_param = 0.5 * (null_recom_param + target_recom_param)
+        context_param = 0.5 / np.median(pdist(context_vec, 'sqeuclidean'))
+        null_recom_param = (0.5 * recom_param) / np.median(pdist(null_reco_vec, 'sqeuclidean'))
+        target_recom_param = (0.5 * recom_param) / np.median(pdist(target_reco_vec, 'sqeuclidean'))
+        # recom_param = 0.5 * (null_recom_param + target_recom_param)
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         targetContextMatrix = self.context_kernel(context_vec, context_vec, context_param)

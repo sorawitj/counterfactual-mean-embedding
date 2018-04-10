@@ -20,7 +20,8 @@ prelim_result = prelim_result[[c for c in prelim_result.columns if 'error' in c]
 # prelim_result = prelim_result.query("multiplier < -0.2")
 df = pd.melt(prelim_result, id_vars=["multiplier"], var_name="estimator")
 
-ax = df.groupby(["estimator", "multiplier"]).agg(lambda x: winsorized_mean(x, 0.1)).unstack("estimator")['value'].plot(ylim=(0,2),logy=True)
+ax = df.groupby(["estimator", "multiplier"]).agg(lambda x: winsorized_mean(x, 0.1))\
+    .unstack("estimator")['value'].plot(ylim=(0,0.8))
 
 x = df.multiplier.unique()
 palette = sns.color_palette()
@@ -29,6 +30,6 @@ for cond, cond_df in df.groupby("estimator"):
     sd = cond_df.groupby("multiplier").value.apply(winsorized_std, 0.1)
     mean = cond_df.groupby("multiplier").value.apply(winsorized_mean, 0.1)
     n = cond_df.groupby("multiplier").size()
-    low = mean + sd/n
-    high = mean - sd/n
+    low = mean - sd
+    high = mean + sd
     ax.fill_between(x, low, high, alpha=.2, color=palette.pop(0))

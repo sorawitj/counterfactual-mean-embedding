@@ -1,15 +1,15 @@
 from Environment import *
 from Estimator import *
 from Policy import *
-from Utils import *
 import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import joblib
 import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 
 def simulate_data(null_policy, target_policy, environment, item_vectors):
     """
@@ -120,5 +120,4 @@ if __name__ == "__main__":
         result_df = result_df.append(compare_df, ignore_index=True)
 
     # compare_df[list(filter(lambda x: 'error' not in x,compare_df.columns))].plot()
-
     result_df.to_csv("prelim_result.csv", index=False)
