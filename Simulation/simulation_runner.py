@@ -7,7 +7,9 @@ import pandas as pd
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 import matplotlib.pyplot as plt
 import joblib
+import os
 
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 def simulate_data(null_policy, target_policy, environment, item_vectors):
     """
@@ -17,12 +19,12 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
     user = environment.get_context()
     null_reco, null_multinomial, null_user_vector = null_policy.recommend(user)
     # recommendation is represented by a concatenation of recommended item vectors
-    null_reco_vec = np.concatenate(item_vectors[null_reco])
+    null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
     null_reward = environment.get_reward(user, null_reco)
 
     target_reco, target_multinomial, _ = target_policy.recommend(user)
     # recommendation is represented by a concatenation of recommended item vectors
-    target_reco_vec = np.concatenate(item_vectors[target_reco])
+    target_reco_vec = np.mean(item_vectors[target_reco], axis=0)
     target_reward = environment.get_reward(user, target_reco)
 
     observation = {"context_vec": null_user_vector, "null_reco": tuple(null_reco),
@@ -77,7 +79,7 @@ if __name__ == "__main__":
         "context_dim": 10
     }
     result_df = pd.DataFrame()
-    num_iter = 30
+    num_iter = 50
 
     user_vectors = np.random.normal(0, 1, size=(config['n_users'], config['context_dim']))
     target_user_vectors = user_vectors * np.random.binomial(1, 0.5, size=user_vectors.shape)
@@ -87,7 +89,7 @@ if __name__ == "__main__":
 
         # The policy we use to generate sim data
         null_policy = MultinomialPolicy(item_vectors, null_user_vectors, config['n_items'], config['n_reco'],
-                                        temperature=0.1)
+                                        temperature=0.5)
 
         # The target policy
         target_policy = MultinomialPolicy(item_vectors, target_user_vectors, config['n_items'], config['n_reco'],
@@ -109,15 +111,14 @@ if __name__ == "__main__":
                       CMEstimator(rbf_kernel, rbf_kernel, params)]
 
         seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
-        # pool = multiprocessing.Pool(4)
-        # compare_df = pool.starmap(compare_estimators, [(estimators, null_policy, target_policy, environment, item_vectors,
-        #                                        config, seeds[i]) for i in range(num_iter)])
-        compare_df = joblib.Parallel(n_jobs=-2, verbose=50)(
+        compare_df = joblib.Parallel(n_jobs=-1, verbose=50)(
             joblib.delayed(compare_estimators)(estimators, null_policy, target_policy, environment, item_vectors,
                                                config, seeds[i]) for i in range(num_iter)
         )
         compare_df = pd.DataFrame(compare_df)
         compare_df['multiplier'] = multiplier
         result_df = result_df.append(compare_df, ignore_index=True)
+
+    # compare_df[list(filter(lambda x: 'error' not in x,compare_df.columns))].plot()
 
     result_df.to_csv("prelim_result.csv", index=False)

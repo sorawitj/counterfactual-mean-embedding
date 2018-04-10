@@ -113,7 +113,7 @@ class DoublyRobustEstimator(IPSEstimator):
         nullProb = self.null_policy.get_propensity(row.null_multinomial, row.null_reco)
         targetProb = self.target_policy.get_propensity(row.target_multinomial, row.null_reco)
 
-        estimated_reward = row.direct_pred + (row.null_reward - row.direct_pred) * targetProb / nullProb
+        estimated_reward = row.target_pred + (row.null_reward - row.null_pred) * targetProb / nullProb
 
         return estimated_reward
 
@@ -129,22 +129,33 @@ class DoublyRobustEstimator(IPSEstimator):
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
-                       'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, sim_data['null_reward'].as_matrix(),
+        null_numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                            'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, sim_data['null_reward'].as_matrix(),
                                                             batch_size=1024, num_epochs=100, shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
-        numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
-                       'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
-        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=1024, num_epochs=1, shuffle=False)
-        prediction = classifier.predict(pred_input_fn)
+        target_numpy_input = {'context_vec': np.stack(sim_data['context_vec'].as_matrix()),
+                              'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
 
-        direct_predictions = []
-        for p in prediction:
-            direct_predictions.append(p['logistic'][0])
+        null_pred_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, batch_size=1024, num_epochs=1,
+                                                                shuffle=False)
+        target_pred_input_fn = tf.estimator.inputs.numpy_input_fn(target_numpy_input, batch_size=1024, num_epochs=1,
+                                                                  shuffle=False)
 
-        sim_data['direct_pred'] = direct_predictions
+        null_predictions = []
+        target_predictions = []
+
+        null_prediction = classifier.predict(null_pred_input_fn)
+        for null_p in null_prediction:
+            null_predictions.append(null_p['logistic'][0])
+
+        target_prediction = classifier.predict(target_pred_input_fn)
+        for target_p in target_prediction:
+            target_predictions.append(target_p['logistic'][0])
+
+        sim_data['null_pred'] = null_predictions
+        sim_data['target_pred'] = target_predictions
         expReward = sim_data.apply(self.single_estimate, axis=1)
         # expReward = applyParallel(sim_data, self.single_estimate)
 
@@ -265,10 +276,11 @@ class CMEstimator(Estimator):
         context_param = 0.5 / np.median(pdist(context_vec, 'euclidean')) ** 2
         null_recom_param = (0.5 * recom_param) / np.median(pdist(null_reco_vec, 'euclidean')) ** 2
         target_recom_param = (0.5 * recom_param) / np.median(pdist(target_reco_vec, 'euclidean')) ** 2
+        recom_param = 0.5 * (null_recom_param + target_recom_param)
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         targetContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
-        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, null_recom_param)
+        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, target_recom_param)
         targetRecomMatrix = self.recom_kernel(null_reco_vec, target_reco_vec, target_recom_param)
 
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
