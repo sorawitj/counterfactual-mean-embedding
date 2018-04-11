@@ -1,12 +1,15 @@
 import pandas as pd
 import seaborn as sns
 import numpy as np
-from scipy.stats import trim_mean
+import matplotlib.pyplot as plt
+
 from scipy.stats.mstats import winsorize
+
 
 def winsorized_std(data, percentile):
     std = np.std(winsorize(data, (0, percentile)).data)
     return std
+
 
 def winsorized_mean(data, percentile):
     mean = np.mean(winsorize(data, (0, percentile)).data)
@@ -15,21 +18,24 @@ def winsorized_mean(data, percentile):
 
 prelim_result = pd.read_csv("prelim_result.csv")
 
-
 prelim_result = prelim_result[[c for c in prelim_result.columns if 'error' in c] + ['multiplier']]
+prelim_result.columns = prelim_result.columns.str.replace("_square_error", "")
+
+estimator_cols = list(filter(lambda x: 'estimator' in x, prelim_result))
+
+winsorized_df = pd.DataFrame()
+for cond, cond_df in prelim_result.groupby("multiplier"):
+    for e in estimator_cols:
+        cond_df[e] = winsorize(cond_df[e], (0, 0.1))
+
+    cond_df["multiplier"] = cond
+    winsorized_df = winsorized_df.append(cond_df)
+
 # prelim_result = prelim_result.query("multiplier < -0.2")
-df = pd.melt(prelim_result, id_vars=["multiplier"], var_name="estimator")
+final_df = pd.melt(winsorized_df, id_vars=["multiplier"], var_name="estimator", value_name="MSE")
 
-ax = df.groupby(["estimator", "multiplier"]).agg(lambda x: winsorized_mean(x, 0.1))\
-    .unstack("estimator")['value'].plot(ylim=(0,0.8))
+ax = sns.pointplot(x="multiplier", y="MSE", hue="estimator", data=final_df)
+ax.set_yscale('log')
+ax.set_ylabel("Mean Square Error (log scale)")
 
-x = df.multiplier.unique()
-palette = sns.color_palette()
-
-for cond, cond_df in df.groupby("estimator"):
-    sd = cond_df.groupby("multiplier").value.apply(winsorized_std, 0.1)
-    mean = cond_df.groupby("multiplier").value.apply(winsorized_mean, 0.1)
-    n = cond_df.groupby("multiplier").size()
-    low = mean - sd
-    high = mean + sd
-    ax.fill_between(x, low, high, alpha=.2, color=palette.pop(0))
+plt.savefig('prelim_result.png')
