@@ -231,8 +231,6 @@ class SlateEstimator(Estimator):
 """
 The counterfactual mean embedding estimator 
 """
-
-
 class CMEstimator(Estimator):
     @property
     def name(self):
@@ -256,6 +254,17 @@ class CMEstimator(Estimator):
     @params.setter
     def params(self, value):
         self.__params = value
+
+    def select_parameters(self, sim_data, params_grid):
+        """
+        Select the best parameter setting for the estimator
+
+        :param sim_data:
+        :param params_grid:
+        :return:
+        """
+
+        # TODO
 
     def estimate(self, sim_data):
         """
@@ -290,13 +299,6 @@ class CMEstimator(Estimator):
 
         # solve a linear least-square
         beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
-        # beta_vec[beta_vec < 0] = 0.0
-
-        # solve a linear least-squares problem with bounds on the weight vector
-        # beta_vec = lsq_linear(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b, bounds=(0.,np.inf), lsmr_tol='auto', max_iter=40, verbose=2).x
-
-        # use non-negative least square solver
-        # beta_vec, res = nnls(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
