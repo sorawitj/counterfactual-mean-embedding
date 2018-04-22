@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 import numpy as np
 import itertools
+import scipy
 import scipy.linalg
 import pandas as pd
 from Policy import *
@@ -9,6 +10,9 @@ from scipy.optimize import lsq_linear, nnls
 from scipy.spatial.distance import pdist
 import tensorflow as tf
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
+
+import joblib
+from sklearn.model_selection import StratifiedKFold
 
 """
 Classes that represent different policy estimators for simulated experiments
@@ -255,16 +259,43 @@ class CMEstimator(Estimator):
     def params(self, value):
         self.__params = value
 
-    def select_parameters(self, sim_data, params_grid):
+    def select_parameters(self, sim_data, params_grid, n_splits=5):
         """
-        Select the best parameter setting for the estimator
+        Select the best parameter setting
 
-        :param sim_data:
-        :param params_grid:
-        :return:
+        :return: the best parameters
         """
 
-        # TODO
+        num_params = len(params_grid)
+        num_data = len(sim_data)
+
+        # create estimators using parameter grid
+        cme_estimators = [CMEstimator(self.context_kernel, self.recom_kernel, params) for params in params_grid]
+
+        kfold = StratifiedKFold(n_splits=n_splits)
+
+        sq_errors = np.zeros(num_params)
+
+        with joblib.Parallel(n_jobs=num_params, max_nbytes=1e6) as parallel:
+
+            for train, test in kfold.split(np.zeros(num_data), sim_data.null_reward):
+
+                sim_data_null = sim_data.iloc[train]
+
+                # evaluate the estimator on each split
+                actual_value = sim_data["null_reward"].iloc[test].mean()
+                estimated_values = parallel(joblib.delayed(e.estimate)(sim_data_null) for e in cme_estimators)
+                sq_errors += [(est - actual_value) ** 2 for est in estimated_values]
+
+            sq_errors /= n_splits
+
+        # set and return the best parameters
+        best_params = params_grid[np.argmin(sq_errors)]
+        self.params = best_params
+
+        print(best_params)
+
+        return best_params
 
     def estimate(self, sim_data):
         """
@@ -298,7 +329,12 @@ class CMEstimator(Estimator):
         b = np.dot(np.multiply(targetContextMatrix, targetRecomMatrix), np.repeat(1.0 / m, m, axis=0))
 
         # solve a linear least-square
-        beta_vec = np.linalg.solve(np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n)), b)
+        A = np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n))
+        #beta_vec = np.linalg.solve(A, b)
+
+        #Ainv = scipy.sparse.linalg.splu(A)
+        #Ainv = scipy.sparse.linalg.LinearOperator(A.size, Ainv.solve)
+        beta_vec,_ = scipy.sparse.linalg.cg(A, b, tol=1e-06, maxiter=1000)
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.
