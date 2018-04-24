@@ -18,7 +18,6 @@ from sklearn.model_selection import StratifiedKFold
 Classes that represent different policy estimators for simulated experiments
 """
 
-
 class Estimator(object):
     @abstractmethod
     def estimate(self, sim_data):
@@ -293,8 +292,6 @@ class CMEstimator(Estimator):
         best_params = params_grid[np.argmin(sq_errors)]
         self.params = best_params
 
-        print(best_params)
-
         return best_params
 
     def estimate(self, sim_data):
@@ -320,7 +317,7 @@ class CMEstimator(Estimator):
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         targetContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
-        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, target_recom_param)
+        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, target_recom_param) #
         targetRecomMatrix = self.recom_kernel(null_reco_vec, target_reco_vec, target_recom_param)
 
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
