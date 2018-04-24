@@ -10,6 +10,7 @@ from scipy.optimize import lsq_linear, nnls
 from scipy.spatial.distance import pdist
 import tensorflow as tf
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
+from scipy.stats.mstats import winsorize
 
 import joblib
 from sklearn.model_selection import StratifiedKFold
@@ -86,16 +87,21 @@ class IPSEstimator(Estimator):
         self.null_policy = null_policy
         self.target_policy = target_policy
 
-    def single_estimate(self, row):
+    def calculate_weight(self, row):
         nullProb = self.null_policy.get_propensity(row.null_multinomial, row.null_reco)
-        targetProb = self.target_policy.get_propensity(row.target_multinomial, row.null_reco)
+        if not self.target_policy.greedy:
+            targetProb = self.target_policy.get_propensity(row.target_multinomial, row.null_reco)
+        else:
+            targetProb = 1.0 if row.null_reco == row.target_reco else 0
 
-        return row.null_reward * targetProb / nullProb
+        return targetProb / nullProb
 
     def estimate(self, sim_data):
-        expReward = sim_data.apply(self.single_estimate, axis=1)
-        # expReward = applyParallel(sim_data, self.single_estimate)
-        return np.mean(expReward)
+        sim_data['ips_w'] = sim_data.apply(self.calculate_weight, axis=1)
+        exp_reward = np.mean(sim_data['ips_w'] * sim_data['null_reward'])
+        exp_weight = np.mean(sim_data['ips_w'])
+
+        return exp_reward / exp_weight
 
 
 class DoublyRobustEstimator(IPSEstimator):
@@ -111,14 +117,6 @@ class DoublyRobustEstimator(IPSEstimator):
 
         """
         super().__init__(n_reco, null_policy, target_policy)
-
-    def single_estimate(self, row):
-        nullProb = self.null_policy.get_propensity(row.null_multinomial, row.null_reco)
-        targetProb = self.target_policy.get_propensity(row.target_multinomial, row.null_reco)
-
-        estimated_reward = row.target_pred + (row.null_reward - row.null_pred) * targetProb / nullProb
-
-        return estimated_reward
 
     def estimate(self, sim_data):
         sim_data = sim_data.copy()
@@ -151,18 +149,20 @@ class DoublyRobustEstimator(IPSEstimator):
 
         null_prediction = classifier.predict(null_pred_input_fn)
         for null_p in null_prediction:
-            null_predictions.append(null_p['logistic'][0])
+            null_predictions.append(null_p['class_ids'][0])
 
         target_prediction = classifier.predict(target_pred_input_fn)
         for target_p in target_prediction:
-            target_predictions.append(target_p['logistic'][0])
+            target_predictions.append(target_p['class_ids'][0])
 
         sim_data['null_pred'] = null_predictions
         sim_data['target_pred'] = target_predictions
-        expReward = sim_data.apply(self.single_estimate, axis=1)
-        # expReward = applyParallel(sim_data, self.single_estimate)
+        sim_data['ips_w'] = sim_data.apply(self.calculate_weight, axis=1)
+        sim_data['ips_w'] = winsorize(sim_data['ips_w'], (0.0, 0.01))
 
-        return np.mean(expReward)
+        estimated_reward = sim_data['target_pred'] + (sim_data['null_reward'] - sim_data['null_pred']) * sim_data['ips_w']
+
+        return np.mean(estimated_reward)
 
 
 class SlateEstimator(Estimator):

@@ -19,12 +19,14 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
     user = environment.get_context()
     null_reco, null_multinomial, null_user_vector = null_policy.recommend(user)
     # recommendation is represented by a concatenation of recommended item vectors
-    null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
+    # null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
+    null_reco_vec = np.concatenate(item_vectors[null_reco])
     null_reward = environment.get_reward(user, null_reco)
 
     target_reco, target_multinomial, _ = target_policy.recommend(user)
     # recommendation is represented by a concatenation of recommended item vectors
-    target_reco_vec = np.mean(item_vectors[target_reco], axis=0)
+    # target_reco_vec = np.mean(item_vectors[target_reco], axis=0)
+    target_reco_vec = np.concatenate(item_vectors[target_reco])
     target_reward = environment.get_reward(user, target_reco)
 
     observation = {"context_vec": null_user_vector, "null_reco": tuple(null_reco),
@@ -33,6 +35,16 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
                    "target_multinomial": target_multinomial, "target_reco_vec": target_reco_vec,
                    "target_reward": target_reward}
     return observation
+
+
+def get_actual_reward(target_policy, environment, n=100000):
+    sum_reward = 0
+    for i in range(n):
+        user = environment.get_context()
+        target_reco, target_multinomial, _ = target_policy.recommend(user)
+        sum_reward += environment.get_reward(user, target_reco)
+
+    return sum_reward / float(n)
 
 
 def grid_search(params, estimator, sim_data, n_iterations):
@@ -58,7 +70,8 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
                 for _ in range(config['n_observation'])]
     sim_data = pd.DataFrame(sim_data)
 
-    actual_value = sim_data.target_reward.mean()
+    actual_value = get_actual_reward(target_policy, environment)
+
     estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
     estimated_values['actual_value'] = actual_value
     estimated_values['null_reward'] = sim_data.null_reward.mean()
@@ -72,14 +85,14 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
 
 if __name__ == "__main__":
     config = {
-        "n_users": 100,
-        "n_items": 40,
-        "n_reco": 5,
+        "n_users": 50,
+        "n_items": 20,
+        "n_reco": 4,
         "n_observation": 5000,
         "context_dim": 10
     }
     result_df = pd.DataFrame()
-    num_iter = 50
+    num_iter = 56
 
     user_vectors = np.random.normal(0, 1, size=(config['n_users'], config['context_dim']))
     target_user_vectors = user_vectors * np.random.binomial(1, 0.5, size=user_vectors.shape)
@@ -93,16 +106,16 @@ if __name__ == "__main__":
 
         # The target policy
         target_policy = MultinomialPolicy(item_vectors, target_user_vectors, config['n_items'], config['n_reco'],
-                                          greedy=True)
+                                          temperature=1.0)
 
         environment = AvgEnvironment(item_vectors, user_vectors)
 
         reg_pow = -1
         reg_params = (10.0 ** reg_pow) / config['n_observation']
-        bw_params = (10.0 ** -1)
+        bw_params = (10.0 ** 0)
         params = [reg_params, bw_params, bw_params]
 
-        """
+        """ 
          Comparing between estimators
          """
         estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
@@ -119,5 +132,5 @@ if __name__ == "__main__":
         compare_df['multiplier'] = multiplier
         result_df = result_df.append(compare_df, ignore_index=True)
 
-    # compare_df[list(filter(lambda x: 'error' not in x,compare_df.columns))].plot()
-    result_df.to_csv("prelim_result.csv", index=False)
+    # compare_df[list(filter(lambda x: 'error' not in x, compare_df.columns))].plot()
+    result_df.to_csv("prelim_result2.csv", index=False)
