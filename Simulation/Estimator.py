@@ -19,6 +19,7 @@ from sklearn.model_selection import StratifiedKFold
 Classes that represent different policy estimators for simulated experiments
 """
 
+
 class Estimator(object):
     @abstractmethod
     def estimate(self, sim_data):
@@ -160,7 +161,8 @@ class DoublyRobustEstimator(IPSEstimator):
         sim_data['ips_w'] = sim_data.apply(self.calculate_weight, axis=1)
         sim_data['ips_w'] = winsorize(sim_data['ips_w'], (0.0, 0.01))
 
-        estimated_reward = sim_data['target_pred'] + (sim_data['null_reward'] - sim_data['null_pred']) * sim_data['ips_w']
+        estimated_reward = sim_data['target_pred'] + (sim_data['null_reward'] - sim_data['null_pred']) * sim_data[
+            'ips_w']
 
         return np.mean(estimated_reward)
 
@@ -171,69 +173,41 @@ class SlateEstimator(Estimator):
         return "slate_estimator"
 
     def __init__(self, n_reco, null_policy):
-
         self.n_reco = n_reco
         self.null_policy = null_policy
 
-    def gamma_inverse(self, context):
-        """
-        calculate inverse of gamma
-        see Off-policy evaluation for slate recommendation(https://arxiv.org/pdf/1605.04812.pdf) for more details
-        :return: gamma matrix inverse
-        """
-
+    def calculate_weight(self, row):
         n_items = self.null_policy.n_items
-
         n_reco = self.n_reco
-
-        gamma = np.zeros((n_items * n_reco, n_items * n_reco),
-                         dtype=np.longdouble)
-        for p in range(n_reco):
-            currentStart = p * n_items
-            currentEnd = p * n_items + n_items
-            currentMarginals = np.sum(self.prob_dist[context], axis=tuple([q for q in range(n_reco) if q != p]),
-                                      dtype=np.longdouble)
-            gamma[currentStart:currentEnd, currentStart:currentEnd] = np.diag(currentMarginals)
-
-        for p in range(n_reco):
-            for q in range(p + 1, n_reco):
-                currentRowStart = p * n_items
-                currentRowEnd = p * n_items + n_items
-                currentColumnStart = q * n_items
-                currentColumnEnd = q * n_items + n_items
-                pairMarginals = np.sum(self.prob_dist[context],
-                                       axis=tuple([r for r in range(n_reco) if r != p and r != q]),
-                                       dtype=np.longdouble)
-                np.fill_diagonal(pairMarginals, 0)
-
-                gamma[currentRowStart:currentRowEnd, currentColumnStart:currentColumnEnd] = pairMarginals
-                gamma[currentColumnStart:currentColumnEnd, currentRowStart:currentRowEnd] = pairMarginals.T
-
-        return scipy.linalg.pinv(gamma, cond=1e-15, rcond=1e-15)
-
-    def single_estimate(self, context, null_reco, null_reward, target_reco):
-        n_items = self.null_policy.n_items
-        n_reco = min(n_items, self.n_reco)
         n_dim = n_reco * n_items
         temp_range = range(n_reco)
 
         exploredMatrix = np.zeros((n_reco, n_items), dtype=np.longdouble)
-        exploredMatrix[temp_range, list(null_reco[0:n_reco])] = null_reward
+        exploredMatrix[temp_range, list(row.null_reco)] = 1.
 
         targetMatrix = np.zeros((n_reco, n_items), dtype=np.longdouble)
-        targetMatrix[temp_range, list(target_reco[0:n_reco])] = 1
+        targetMatrix[temp_range, list(row.target_reco)] = 1.
 
         posRelVector = exploredMatrix.reshape(n_dim)
         targetSlateVector = targetMatrix.reshape(n_dim)
 
-        estimatedPhi = np.dot(self.gamma_inverse(context), posRelVector)
+        estimatedPhi = np.dot(self.null_policy.gammas[row.user], posRelVector)
 
         return np.dot(estimatedPhi, targetSlateVector)
+
+    def estimate(self, sim_data):
+        sim_data['ips_w'] = sim_data.apply(self.calculate_weight, axis=1)
+        exp_reward = np.mean(sim_data['ips_w'] * sim_data['null_reward'])
+        exp_weight = np.mean(sim_data['ips_w'])
+
+        return exp_reward / exp_weight
 
 
 """
 The counterfactual mean embedding estimator 
 """
+
+
 class CMEstimator(Estimator):
     @property
     def name(self):
@@ -276,9 +250,7 @@ class CMEstimator(Estimator):
         sq_errors = np.zeros(num_params)
 
         with joblib.Parallel(n_jobs=num_params, max_nbytes=1e6) as parallel:
-
             for train, test in kfold.split(np.zeros(num_data), sim_data.null_reward):
-
                 sim_data_null = sim_data.iloc[train]
 
                 # evaluate the estimator on each split
@@ -317,7 +289,7 @@ class CMEstimator(Estimator):
 
         contextMatrix = self.context_kernel(context_vec, context_vec, context_param)
         targetContextMatrix = self.context_kernel(context_vec, context_vec, context_param)
-        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, target_recom_param) #
+        recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, target_recom_param)  #
         targetRecomMatrix = self.recom_kernel(null_reco_vec, target_reco_vec, target_recom_param)
 
         # calculate the coefficient vector using the pointwise product kernel L_ij = K_ij.G_ij
@@ -327,11 +299,11 @@ class CMEstimator(Estimator):
 
         # solve a linear least-square
         A = np.multiply(contextMatrix, recomMatrix) + np.diag(np.repeat(n * reg_param, n))
-        #beta_vec = np.linalg.solve(A, b)
+        # beta_vec = np.linalg.solve(A, b)
 
-        #Ainv = scipy.sparse.linalg.splu(A)
-        #Ainv = scipy.sparse.linalg.LinearOperator(A.size, Ainv.solve)
-        beta_vec,_ = scipy.sparse.linalg.cg(A, b, tol=1e-06, maxiter=1000)
+        # Ainv = scipy.sparse.linalg.splu(A)
+        # Ainv = scipy.sparse.linalg.LinearOperator(A.size, Ainv.solve)
+        beta_vec, _ = scipy.sparse.linalg.cg(A, b, tol=1e-06, maxiter=1000)
 
         # return the expected reward as an average of the rewards, obtained from the null policy,
         # weighted by the coefficients beta from the counterfactual mean estimator.

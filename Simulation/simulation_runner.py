@@ -33,7 +33,7 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
                    "null_reco_vec": null_reco_vec, "null_reward": null_reward,
                    "target_reco": tuple(target_reco), "null_multinomial": null_multinomial,
                    "target_multinomial": target_multinomial, "target_reco_vec": target_reco_vec,
-                   "target_reward": target_reward}
+                   "target_reward": target_reward, "user": user}
     return observation
 
 
@@ -102,11 +102,11 @@ if __name__ == "__main__":
 
         # The policy we use to generate sim data
         null_policy = MultinomialPolicy(item_vectors, null_user_vectors, config['n_items'], config['n_reco'],
-                                        temperature=0.5)
+                                        temperature=0.5, cal_gamma=True)
 
         # The target policy
         target_policy = MultinomialPolicy(item_vectors, target_user_vectors, config['n_items'], config['n_reco'],
-                                          temperature=1.0)
+                                          temperature=1.0, cal_gamma=False)
 
         environment = AvgEnvironment(item_vectors, user_vectors)
 
@@ -119,6 +119,7 @@ if __name__ == "__main__":
          Comparing between estimators
          """
         estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
+                      SlateEstimator(config['n_reco'], null_policy),
                       DirectEstimator(),
                       DoublyRobustEstimator(config['n_reco'], null_policy, target_policy),
                       CMEstimator(rbf_kernel, rbf_kernel, params)]
@@ -133,4 +134,4 @@ if __name__ == "__main__":
         result_df = result_df.append(compare_df, ignore_index=True)
 
     # compare_df[list(filter(lambda x: 'error' not in x, compare_df.columns))].plot()
-    result_df.to_csv("prelim_result2.csv", index=False)
+    result_df.to_csv("prelim_result3.csv", index=False)

@@ -16,7 +16,7 @@ def winsorized_mean(data, percentile):
     return mean
 
 
-prelim_result = pd.read_csv("prelim_result2.csv")
+prelim_result = pd.read_csv("prelim_result3.csv")
 
 prelim_result = prelim_result[[c for c in prelim_result.columns if 'error' in c] + ['multiplier']]
 prelim_result.columns = prelim_result.columns.str.replace("_square_error", "")
@@ -38,4 +38,4 @@ ax = sns.pointplot(x="multiplier", y="MSE", hue="estimator", data=final_df)
 ax.set_yscale('log')
 ax.set_ylabel("Mean Square Error (log scale)")
 
-plt.savefig('prelim_result2.png')
+plt.savefig('prelim_result3.png')
