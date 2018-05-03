@@ -1,9 +1,44 @@
 from abc import abstractmethod
 
 import numpy as np
+import scipy
 from collections import defaultdict
 import itertools
 from Utils import *
+import GammaDP
+import joblib
+
+
+# NonUniformGamma(...) computes a Gamma_pinv matrix for non-uniform exploration
+# num_candidates: (int) Number of candidates, m
+# decay: (double) Decay factor. Doc Selection Prob \propto exp2(-decay * floor[ log2(rank) ])
+# ranking_size: (int) Size of slate, l
+# allow_repetitions: (bool) If True, repetitions were allowed in the ranking
+def NonUniformGamma(multinomial, n_items, n_reco):
+    for i in range(1, n_items):
+        prevVal = multinomial[i - 1]
+        currVal = multinomial[i]
+        if np.isclose(currVal, prevVal):
+            multinomial[i] = prevVal
+
+    gammaVals = GammaDP.GammaCalculator(multinomial.tolist(), n_reco)
+    gamma = np.diag(np.ravel(gammaVals.unitMarginals))
+
+    for p in range(n_reco):
+        for q in range(p + 1, n_reco):
+            pairMarginals = gammaVals.pairwiseMarginals[(p, q)]
+            currentRowStart = p * n_items
+            currentRowEnd = (p + 1) * n_items
+            currentColumnStart = q * n_items
+            currentColumnEnd = (q + 1) * n_items
+            gamma[currentRowStart:currentRowEnd, currentColumnStart:currentColumnEnd] = pairMarginals
+            gamma[currentColumnStart:currentColumnEnd, currentRowStart:currentRowEnd] = pairMarginals.T
+
+    normalizer = np.sum(multinomial, dtype=np.longdouble)
+
+    gammaInv = scipy.linalg.pinv(gamma)
+    return gammaInv
+
 
 """
 Classes represent policies that have recommend function mapping from context to recommendation(treatment)
@@ -34,7 +69,8 @@ Sample items without replacement based on pre-define probability
 
 
 class MultinomialPolicy(Policy):
-    def __init__(self, item_vectors, estimated_user_vectors, n_items, n_reco, temperature=1.0, greedy=False):
+    def __init__(self, item_vectors, estimated_user_vectors, n_items, n_reco,
+                 temperature=1.0, greedy=False, cal_gamma=False):
         """
         :param item_vectors: probability distribution over items
         :param greedy: if greedy is true -> recommend items which have the highest probabilities
@@ -44,6 +80,13 @@ class MultinomialPolicy(Policy):
         self.estimated_user_vectors = estimated_user_vectors
         self.greedy = greedy
         self.tau = temperature
+        self.multinomials = softmax(np.matmul(estimated_user_vectors, self.item_vectors.T),
+                                    axis=1, tau=self.tau)
+        self.gammas = None
+        if cal_gamma:
+            gammas = joblib.Parallel(n_jobs=-1, verbose=50)(
+                joblib.delayed(NonUniformGamma)(m, n_items, n_reco) for m in self.multinomials)
+            self.gammas = np.array(gammas)
 
     def get_propensity(self, multinomial, reco):
         """
@@ -60,8 +103,8 @@ class MultinomialPolicy(Policy):
         return prob
 
     def recommend(self, user):
-        user_vector = self.estimated_user_vectors[user, :]
-        multinomial = softmax(np.matmul(user_vector, self.item_vectors.T), tau=self.tau)
+        user_vector = self.estimated_user_vectors[user]
+        multinomial = self.multinomials[user]
 
         if self.greedy:
             reco = np.argsort(-multinomial, kind='mergesort')[:self.n_reco]
