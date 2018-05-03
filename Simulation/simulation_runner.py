@@ -71,15 +71,12 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
                 for _ in range(config['n_observation'])]
     sim_data = pd.DataFrame(sim_data)
 
-<<<<<<< HEAD
     # parameter selection for CME
     cme_selector = ParameterSelector(estimators[-1])
     params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6, 0, 1)]
     cme_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
     estimators[-1] = cme_selector.estimator
 
-=======
->>>>>>> 9ed05bd9499b9f8e449da116a3d168357d7717d4
     actual_value = get_actual_reward(target_policy, environment)
 
     estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
