@@ -78,11 +78,18 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
                 for _ in range(config['n_observation'])]
     sim_data = pd.DataFrame(sim_data)
 
-    # parameter selection for CME
-    cme_selector = ParameterSelector(estimators[-1])
+    # parameter selection
+    direct_selector = ParameterSelector(estimators[2])  # direct estimator
+    params_grid = [(n_hiddens, 1024, 100) for n_hiddens in [50, 100, 150, 200]]
+    direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
+    estimators[2] = direct_selector.estimator
+
+    estimators[3].params = direct_selector.parameters  # doubly robust estimator
+
+    cme_selector = ParameterSelector(estimators[4])  # cme estimator
     params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6, 0, 1)]
     cme_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
-    estimators[-1] = cme_selector.estimator
+    estimators[4] = cme_selector.estimator
 
     actual_value = get_actual_reward(target_policy, environment)
 
@@ -148,7 +155,7 @@ if __name__ == "__main__":
                   CMEstimator(rbf_kernel, rbf_kernel, params)]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
-    compare_df = joblib.Parallel(n_jobs=1, verbose=50)(
+    compare_df = joblib.Parallel(n_jobs=2, verbose=50)(
         joblib.delayed(compare_estimators)(estimators, null_policy, target_policy, environment, item_vectors,
                                            config, seeds[i]) for i in range(num_iter)
     )

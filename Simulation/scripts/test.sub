@@ -1,0 +1,10 @@
+executable = /usr/bin/python3 
+arguments = ../simulation_runner.py
+error = test.err
+output = test.out
+log = test.log
+request_memory = 10024
+request_cpus = 10
+request_gpus = 1
+concurrency_limits=user.mytag:1000
+queue

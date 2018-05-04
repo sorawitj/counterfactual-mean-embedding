@@ -75,10 +75,12 @@ class ParameterSelector(object):
                 new_data = pd.concat([pd.DataFrame({'null_reward': data.null_reward.iloc[train],
                                                     'null_context_vec': data.null_context_vec.iloc[train],
                                                     'null_reco_vec': data.null_reco_vec.iloc[train],
-                                                    'null_reco': data.null_reco.iloc[train]}),
+                                                    'null_reco': data.null_reco.iloc[train],
+                                                    'null_multinomial': data.null_multinomial.iloc[train]}),
                                       pd.DataFrame({'target_context_vec': data.null_context_vec.iloc[test],
                                                     'target_reco_vec': data.null_reco_vec.iloc[test],
-                                                    'target_reco': data.null_reco.iloc[test]})],
+                                                    'target_reco': data.null_reco.iloc[test],
+                                                    'target_multinomial': data.target_multinomial.iloc[test]})],
                                      axis=1)
 
                 # evaluate the estimator on each split

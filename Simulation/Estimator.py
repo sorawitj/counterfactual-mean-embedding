@@ -41,11 +41,31 @@ class DirectEstimator(Estimator):
     def name(self):
         return "direct_estimator"
 
+    @property
+    def params(self):
+        return self._params
+
+    @params.setter
+    def params(self, value):
+        self._params = value
+
+    def __init__(self, params=(40,1024,100)):
+        self.params = params
+
     def estimate(self, sim_data):
+
         sim_data = sim_data.copy()
-        context_dim = np.shape(sim_data['null_context_vec'][0])[0]
-        reco_dim = np.shape(sim_data['null_reco_vec'][0])[0]
-        hidden_units = [40]
+
+        null_context_vec    = sim_data['null_context_vec'].dropna(axis=0)
+        null_reco_vec       = sim_data['null_reco_vec'].dropna(axis=0)
+        target_context_vec  = sim_data['target_context_vec'].dropna(axis=0)
+        target_reco_vec     = sim_data['target_reco_vec'].dropna(axis=0)
+        null_reward         = sim_data['null_reward'].dropna(axis=0)
+
+        context_dim = null_context_vec.iloc[0].shape[0]
+        reco_dim = null_reco_vec.iloc[0].shape[0]
+
+        hidden_units = [self.params[0]]
         feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
                            tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
         classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
@@ -53,15 +73,15 @@ class DirectEstimator(Estimator):
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        numpy_input = {'context_vec': np.stack(sim_data['null_context_vec'].as_matrix()),
-                       'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, sim_data['null_reward'].as_matrix(),
-                                                            batch_size=1024, num_epochs=100, shuffle=True)
+        numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
+                       'reco_vec': np.stack(null_reco_vec.as_matrix())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, null_reward.as_matrix(),
+                                                            batch_size=self.params[1], num_epochs=self.params[2], shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
-        numpy_input = {'context_vec': np.stack(sim_data['target_context_vec'].as_matrix()),
-                       'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
-        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=1024, num_epochs=1, shuffle=False)
+        numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
+                       'reco_vec': np.stack(target_reco_vec.as_matrix())}
+        pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=self.params[1], num_epochs=1, shuffle=False)
         prediction = classifier.predict(pred_input_fn)
         total_reward = 0
         n = 0
@@ -110,7 +130,15 @@ class DoublyRobustEstimator(IPSEstimator):
     def name(self):
         return "doubly robust estimator"
 
-    def __init__(self, n_reco: int, null_policy: MultinomialPolicy, target_policy: MultinomialPolicy):
+    @property
+    def params(self):
+        return self._params
+
+    @params.setter
+    def params(self, value):
+        self._params = value
+
+    def __init__(self, n_reco, null_policy, target_policy, params=(40,1024,100)):
         """
         :param n_reco: number of recommendation
         :param null_policy: a policy used to generate data
@@ -118,12 +146,21 @@ class DoublyRobustEstimator(IPSEstimator):
 
         """
         super().__init__(n_reco, null_policy, target_policy)
+        self.params = params
 
     def estimate(self, sim_data):
         sim_data = sim_data.copy()
-        context_dim = np.shape(sim_data['null_context_vec'][0])[0]
-        reco_dim = np.shape(sim_data['null_reco_vec'][0])[0]
-        hidden_units = [40]
+
+        null_context_vec    = sim_data['null_context_vec'].dropna(axis=0)
+        null_reco_vec       = sim_data['null_reco_vec'].dropna(axis=0)
+        null_reward         = sim_data['null_reward'].dropna(axis=0)
+        target_context_vec  = sim_data['target_context_vec'].dropna(axis=0)
+        target_reco_vec     = sim_data['target_reco_vec'].dropna(axis=0)
+
+        context_dim = null_context_vec.iloc[0].shape[0]
+        reco_dim = null_reco_vec.iloc[0].shape[0]
+
+        hidden_units = [self.params[0]]
         feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
                            tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
         classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
@@ -131,18 +168,18 @@ class DoublyRobustEstimator(IPSEstimator):
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        null_numpy_input = {'context_vec': np.stack(sim_data['null_context_vec'].as_matrix()),
-                            'reco_vec': np.stack(sim_data['null_reco_vec'].as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, sim_data['null_reward'].as_matrix(),
-                                                            batch_size=1024, num_epochs=100, shuffle=True)
+        null_numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
+                            'reco_vec': np.stack(null_reco_vec.as_matrix())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, null_reward.as_matrix(),
+                                                            batch_size=self.params[1], num_epochs=self.params[2], shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
-        target_numpy_input = {'context_vec': np.stack(sim_data['target_context_vec'].as_matrix()),
-                              'reco_vec': np.stack(sim_data['target_reco_vec'].as_matrix())}
+        target_numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
+                              'reco_vec': np.stack(target_reco_vec.as_matrix())}
 
-        null_pred_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, batch_size=1024, num_epochs=1,
+        null_pred_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, batch_size=self.params[1], num_epochs=1,
                                                                 shuffle=False)
-        target_pred_input_fn = tf.estimator.inputs.numpy_input_fn(target_numpy_input, batch_size=1024, num_epochs=1,
+        target_pred_input_fn = tf.estimator.inputs.numpy_input_fn(target_numpy_input, batch_size=self.params[1], num_epochs=1,
                                                                   shuffle=False)
 
         null_predictions = []
@@ -156,12 +193,16 @@ class DoublyRobustEstimator(IPSEstimator):
         for target_p in target_prediction:
             target_predictions.append(target_p['class_ids'][0])
 
-        sim_data['null_pred'] = null_predictions
-        sim_data['target_pred'] = target_predictions
-        sim_data['ips_w'] = sim_data.apply(self.calculate_weight, axis=1)
-        sim_data['ips_w'] = winsorize(sim_data['ips_w'], (0.0, 0.01))
+        #sim_data = pd.concat([sim_data,
+        #                      pd.DataFrame({'null_pred': null_predictions}),
+        #                      pd.DataFrame({'target_pred': target_predictions}),
+        #                      pd.DataFrame({'ips_w': winsorize(sim_data.apply(self.calculate_weight, axis=1),
+        #                                                       (0.0, 0.01))})], axis=1)
 
-        estimated_reward = sim_data['target_pred'] + (sim_data['null_reward'] - sim_data['null_pred']) * sim_data['ips_w']
+        #estimated_reward = sim_data['target_pred'] + (sim_data['null_reward'] - sim_data['null_pred']) * sim_data['ips_w']
+
+        ips_w = winsorize(sim_data.apply(self.calculate_weight, axis=1), (0.0, 0.01))
+        estimated_reward = target_predictions + (null_reward - null_predictions) * ips_w
 
         return np.mean(estimated_reward)
 
@@ -229,40 +270,6 @@ class CMEstimator(Estimator):
     def params(self, value):
         self._params = value
 
-    def select_parameters(self, sim_data, params_grid, n_splits=5):
-        """
-        Select the best parameter setting
-
-        :return: the best parameters
-        """
-
-        num_params = len(params_grid)
-        num_data = len(sim_data)
-
-        # create estimators using parameter grid
-        cme_estimators = [CMEstimator(self.context_kernel, self.recom_kernel, params) for params in params_grid]
-
-        kfold = StratifiedKFold(n_splits=n_splits)
-
-        sq_errors = np.zeros(num_params)
-
-        with joblib.Parallel(n_jobs=num_params, max_nbytes=1e6) as parallel:
-            for train, test in kfold.split(np.zeros(num_data), sim_data.null_reward):
-                sim_data_null = sim_data.iloc[train]
-
-                # evaluate the estimator on each split
-                actual_value = sim_data["null_reward"].iloc[test].mean()
-                estimated_values = parallel(joblib.delayed(e.estimate)(sim_data_null) for e in cme_estimators)
-                sq_errors += [(est - actual_value) ** 2 for est in estimated_values]
-
-            sq_errors /= n_splits
-
-        # set and return the best parameters
-        best_params = params_grid[np.argmin(sq_errors)]
-        self.params = best_params
-
-        return best_params
-
     def estimate(self, sim_data):
         """
          Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
@@ -286,6 +293,7 @@ class CMEstimator(Estimator):
 
         contextMatrix = self.context_kernel(null_context_vec, null_context_vec, context_param)
         recomMatrix = self.recom_kernel(null_reco_vec, null_reco_vec, recom_param) #
+
         targetContextMatrix = self.context_kernel(null_context_vec, target_context_vec, context_param)
         targetRecomMatrix = self.recom_kernel(null_reco_vec, target_reco_vec, recom_param)
 

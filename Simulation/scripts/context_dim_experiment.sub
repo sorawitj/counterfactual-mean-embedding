@@ -1,0 +1,10 @@
+executable = /usr/bin/python3 
+arguments = ../context_dim_experiment.py $(Process)
+error = context_dim_report/contextd.$(Process).err
+output = context_dim_report/contextd.$(Process).out
+log = context_dim_report/contextd.$(Process).log
+request_memory = 10048
+request_cpus = 10
+request_gpus = 1
+concurrency_limits=user.mytag:1000
+queue 6
