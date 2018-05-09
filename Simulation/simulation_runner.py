@@ -30,8 +30,8 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
     target_reco_vec = np.concatenate(item_vectors[target_reco])
     target_reward = environment.get_reward(user, target_reco)
 
-    observation = {"context_vec": null_user_vector, "null_reco": tuple(null_reco),
-                   "null_reco_vec": null_reco_vec, "null_reward": null_reward,
+    observation = {"null_context_vec": null_user_vector, "target_context_vec": null_user_vector,
+                   "null_reco": tuple(null_reco), "null_reco_vec": null_reco_vec, "null_reward": null_reward,
                    "target_reco": tuple(target_reco), "null_multinomial": null_multinomial,
                    "target_multinomial": target_multinomial, "target_reco_vec": target_reco_vec,
                    "target_reward": target_reward, "user": user}
@@ -148,4 +148,4 @@ if __name__ == "__main__":
         result_df = result_df.append(compare_df, ignore_index=True)
 
     # compare_df[list(filter(lambda x: 'error' not in x, compare_df.columns))].plot()
-    result_df.to_csv("prelim_result3.csv", index=False)
+    result_df.to_csv("prelim_result0.csv", index=False)
