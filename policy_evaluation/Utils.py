@@ -47,6 +47,9 @@ def softmax(X, tau=1.0, axis=None):
 
     return p
 
+def sigmoid(x):
+  return 1 / (1 + np.exp(-x))
+
 
 def applyParallel(df: pd.DataFrame, func):
     retLst = Parallel(n_jobs=-2)(delayed(func)(row) for i, row in df.iterrows())
