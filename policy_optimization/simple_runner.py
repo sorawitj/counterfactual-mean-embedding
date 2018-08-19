@@ -6,7 +6,6 @@ import numpy as np
 config = {
     "n_users": 10,
     "n_items": 5,
-    "n_reco": 4,
     "n_observation": 3000,
     "context_dim": 10,
     'learning_rate': 0.05
