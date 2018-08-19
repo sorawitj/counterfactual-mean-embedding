@@ -37,9 +37,11 @@ class PolicyGradientAgent(object):
         # surrogate loss
         self.loss = -tf.reduce_sum(self.act_prob * self._rewards)
 
-        # update
+        # update + gradient clipping
         optimizer = tf.train.AdamOptimizer(config['learning_rate'])
-        self._train = optimizer.minimize(self.loss)
+        gvs = optimizer.compute_gradients(self.loss)
+        capped_gvs = [(tf.clip_by_norm(grad, 1.), var) for grad, var in gvs]
+        self._train = optimizer.apply_gradients(capped_gvs)
 
     def act(self, sample_users):
         # get one action, by sampling
