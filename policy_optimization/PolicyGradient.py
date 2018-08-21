@@ -24,7 +24,7 @@ class PolicyGradientAgent(object):
         self._samples = tf.reshape(tf.multinomial(self.logits, 1), [-1])
 
         # get log probabilities
-        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-8)
+        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-10)
 
         # training part of graph
         self._acts = tf.placeholder(tf.int32)
@@ -38,7 +38,7 @@ class PolicyGradientAgent(object):
         self.loss = -tf.reduce_sum(self.act_prob * self._rewards)
 
         # update + gradient clipping
-        optimizer = tf.train.AdamOptimizer(config['learning_rate'])
+        optimizer = tf.train.GradientDescentOptimizer(config['learning_rate'])
         self._train = optimizer.minimize(self.loss)
 
     def act(self, sample_users):
