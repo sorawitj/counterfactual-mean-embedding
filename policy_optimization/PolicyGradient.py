@@ -15,19 +15,16 @@ class PolicyGradientAgent(object):
         if initial_weight is not None:
             initializer = tf.constant_initializer(initial_weight)
 
-        # self.logits = tf.squeeze(tf.layers.dense(
-        #     inputs=self._input,
-        #     units=1,
-        #     kernel_initializer=initializer))
-
-        self.theta = tf.get_variable("theta", shape=(config['context_dim'],), initializer=initializer)
-        self.logits = tf.tensordot(self.theta, self._input, axes=[[0], [2]])
+        self.logits = tf.squeeze(tf.layers.dense(
+            inputs=self._input,
+            units=1,
+            kernel_initializer=initializer))
 
         # op to sample an action
         self._samples = tf.reshape(tf.multinomial(self.logits, 1), [-1])
 
         # get log probabilities
-        self.log_prob = tf.log1p(tf.nn.softmax(self.logits))
+        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-8)
 
         # training part of graph
         self._acts = tf.placeholder(tf.int32)
@@ -52,5 +49,5 @@ class PolicyGradientAgent(object):
         batch_feed = {self._input: obs,
                       self._acts: acts,
                       self._rewards: reward}
-        _, loss, theta, logits = self._s.run([self._train, self.loss, self.theta, self.logits], feed_dict=batch_feed)
-        return loss, theta, logits
+        _, loss = self._s.run([self._train, self.loss], feed_dict=batch_feed)
+        return loss
