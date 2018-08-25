@@ -8,7 +8,7 @@ config = {
     "n_items": 5,
     "n_observation": 3000,
     "context_dim": 10,
-    'learning_rate': 0.1
+    'learning_rate': 0.01
 }
 
 
@@ -30,51 +30,60 @@ sample_users = user_item_vectors[np.random.choice(user_item_vectors.shape[0], co
 
 true_weights = np.random.normal(0, 1, config['context_dim'])
 
-null_policy_weight = np.random.normal(0, 1, config['context_dim'])
+max_rewards = []
+for j in range(100):
+    null_policy_weight = np.random.normal(0, 1, config['context_dim'])
 
-null_action_probs = softmax(sample_users.dot(null_policy_weight.T), axis=1)
+    null_action_probs = softmax(sample_users.dot(null_policy_weight.T), axis=1)
 
-null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
+    null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
 
-null_rewards = get_sample_rewards(true_weights, null_actions)
+    null_rewards = get_sample_rewards(true_weights, null_actions)
 
-sess = tf.Session()
-policy_grad = PolicyGradientAgent(config, sess, null_policy_weight)
-sess.run(tf.global_variables_initializer())
+    sess = tf.Session()
+    policy_grad = PolicyGradientAgent(config, sess, null_policy_weight)
+    sess.run(tf.global_variables_initializer())
 
-null_feature_vec = sample_users[np.arange(len(sample_users)), null_actions, :]
-cme_estimator = CME(null_feature_vec, null_rewards)
+    null_feature_vec = sample_users[np.arange(len(sample_users)), null_actions, :]
+    cme_estimator = CME(null_feature_vec, null_rewards)
 
-target_cme_rewards = []
-target_exp_rewards = []
-target_var_rewards = []
-for i in range(400):
-    target_actions = policy_grad.act(sample_users)
+    target_cme_rewards = []
+    target_exp_rewards = []
+    target_var_rewards = []
 
-    target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
+    for i in range(200):
+        target_actions = policy_grad.act(sample_users)
 
-    target_reward_vec = cme_estimator.estimate(target_feature_vec)
-    target_reward = target_reward_vec.sum()
-    expected_reward, var_reward = get_expected_var_reward(true_weights, target_actions)
-    target_cme_rewards.append(target_reward)
-    target_exp_rewards.append(expected_reward)
-    target_var_rewards.append(var_reward)
+        target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
 
-    loss = policy_grad.train_step(sample_users, null_actions, target_reward_vec)
+        target_reward_vec = cme_estimator.estimate(target_feature_vec)
+        target_reward = target_reward_vec.sum()
+        expected_reward, var_reward = get_expected_var_reward(true_weights, target_actions)
+        target_cme_rewards.append(target_reward)
+        target_exp_rewards.append(expected_reward)
+        target_var_rewards.append(var_reward)
 
-    if i % 20 == 0:
-        print("iter {}, Expected reward: {}".format(i, expected_reward))
-        print("iter {}, CME reward: {}".format(i, target_reward))
-        print("iter {}, loss: {}".format(i, loss))
+        loss = policy_grad.train_step(sample_users, null_actions, target_reward_vec)
+
+        if i % 20 == 0:
+            print("iter {}, Expected reward: {}".format(i, expected_reward))
+            print("iter {}, CME reward: {}".format(i, target_reward))
+            print("iter {}, loss: {}".format(i, loss))
+
+    max_reward = target_exp_rewards[np.argmax(target_cme_rewards)]
+    max_rewards.append(max_reward)
 
 print("FINISH TRAINING !!!")
 target_reward, _ = get_expected_var_reward(true_weights, target_actions)
 
 optimal_actions = np.argmax(sample_users.dot(true_weights.T), axis=1)
-optimal_rewards, _ = get_expected_var_reward(true_weights, optimal_actions)
+optimal_reward, _ = get_expected_var_reward(true_weights, optimal_actions)
 
 print("Target policy: Expecrted reward: {}".format(target_reward))
-print("Optimal policy: Expected reward: {}".format(optimal_rewards))
+print("Optimal policy: Expected reward: {}".format(optimal_reward))
+
+pd.DataFrame(optimal_reward-max_rewards).hist(bins=10)
+plt.show()
 
 # ----------------------- PLOTTING ---------------------------
 
@@ -99,10 +108,10 @@ lb0 = mean0 - 2 * np.array(np.sqrt(target_var_rewards))
 
 mean1 = np.array(target_cme_rewards)
 
-mean2 = np.repeat(optimal_rewards, len(target_cme_rewards))
+mean2 = np.repeat(optimal_reward, len(target_cme_rewards))
 
 # plot the data
-fig = plt.figure(1, figsize=(7, 2.5))
+fig = plt.figure(1, figsize=(8, 3.0))
 plot_mean_and_CI(mean0, ub0, lb0, color_mean='b', color_shading='b')
 plt.plot(mean1, 'g')
 plt.plot(mean2, 'r--')
@@ -152,3 +161,4 @@ plt.xlabel('number of iterations')
 plt.tight_layout()
 plt.grid()
 plt.show()
+fig.savefig('cpg_exp.pdf')

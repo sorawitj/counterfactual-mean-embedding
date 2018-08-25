@@ -38,7 +38,7 @@ class PolicyGradientAgent(object):
         self.loss = -tf.reduce_sum(self.act_prob * self._rewards)
 
         # update + gradient clipping
-        optimizer = tf.train.GradientDescentOptimizer(config['learning_rate'])
+        optimizer = tf.train.AdamOptimizer(config['learning_rate'])
         self._train = optimizer.minimize(self.loss)
 
     def act(self, sample_users):
