@@ -28,13 +28,9 @@ class CME(object):
          """
 
         target_kernel_param = (0.5 * self.kernel_param) / np.median(pdist(target_feature_vec, 'sqeuclidean'))
-
         targetContextMatrix = rbf_kernel(self.null_feature_vec, target_feature_vec, target_kernel_param)
-
         B = np.dot(targetContextMatrix, np.repeat(1.0 / self.n, self.n, axis=0))
-
         beta_vec = np.matmul(self.A_inv, B)
-
         target_reward = beta_vec * self.null_rewards
 
         return target_reward

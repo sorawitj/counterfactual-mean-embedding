@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../policy_evaluation/")
+
 from CME import *
 from ParameterSelector import *
 from PolicyGradient import *
@@ -22,8 +25,12 @@ def get_expected_reward(weight_vector, actions):
     return p.mean()
 
 
-np.random.seed(2)
+###
 
+num_iterations = 1000
+
+np.random.seed(2)
+    
 user_item_vectors = np.random.normal(0, 1, size=(config['n_users'], config['n_items'], config['context_dim']))
 
 sample_users = user_item_vectors[np.random.choice(user_item_vectors.shape[0], config['n_observation'], True), :]
@@ -47,17 +54,17 @@ cme_estimator = CME(null_feature_vec, null_rewards)
 
 target_cme_rewards = []
 target_exp_rewards = []
-for i in range(200):
+for i in range(num_iterations):
     target_actions = policy_grad.act(sample_users)
-
+    
     target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
-
+        
     target_reward_vec = cme_estimator.estimate(target_feature_vec)
     target_reward = target_reward_vec.sum()
     expected_reward = get_expected_reward(true_weights, target_actions)
     target_cme_rewards.append(target_reward)
     target_exp_rewards.append(target_reward.sum())
-
+    
     loss = policy_grad.train_step(sample_users, null_actions, target_reward_vec)
 
     if i % 20 == 0:
