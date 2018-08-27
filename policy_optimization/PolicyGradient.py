@@ -24,7 +24,7 @@ class PolicyGradientAgent(object):
         self._samples = tf.reshape(tf.multinomial(self.logits, 1), [-1])
 
         # get log probabilities
-        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-8)
+        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-10)
 
         # training part of graph
         self._acts = tf.placeholder(tf.int32)
