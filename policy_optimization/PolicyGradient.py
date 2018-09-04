@@ -2,7 +2,6 @@ import tensorflow as tf
 
 
 class PolicyGradientAgent(object):
-
     def __init__(self, config, sess, initial_weight=None):
         # initialization
         self._s = sess
@@ -20,8 +19,9 @@ class PolicyGradientAgent(object):
             units=1,
             kernel_initializer=initializer))
 
-        # op to sample an action
-        self._samples = tf.reshape(tf.multinomial(self.logits, 1), [-1])
+        self.action_probs = tf.nn.softmax(self.logits)
+
+        self._action_dist = tf.distributions.Multinomial(total_count=1., probs=self.action_probs)
 
         # get log probabilities
         self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-10)
@@ -43,7 +43,8 @@ class PolicyGradientAgent(object):
 
     def act(self, sample_users):
         # get one action, by sampling
-        return self._s.run(self._samples, feed_dict={self._input: sample_users})
+        return self._s.run([self._action_dist.sample(1), self.action_probs],
+                           feed_dict={self._input: sample_users})
 
     def train_step(self, obs, acts, reward):
         batch_feed = {self._input: obs,
