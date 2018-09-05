@@ -1,16 +1,16 @@
-import sys
-sys.path.append("../policy_evaluation/")
-
 from CME import *
 from ParameterSelector import *
 from PolicyGradient import *
 import numpy as np
+
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.colors import colorConverter as cc
 
 config = {
     "n_users": 10,
     "n_items": 5,
-    "n_observation": 2000,
+    "n_observation": 3000,
     "context_dim": 10,
     'learning_rate': 0.01
 }
@@ -21,9 +21,14 @@ def get_sample_rewards(weight_vector, actions):
         sample_users[np.arange(len(sample_users)), actions, :].dot(weight_vector.T)))
 
 
-def get_expected_var_reward(weight_vector, actions):
-    p = sigmoid(sample_users[np.arange(len(sample_users)), actions, :].dot(weight_vector.T))
-    return p.mean(), (p * (1 - p)).sum()/len(p)**2
+def get_expected_var_reward(weight_vector, action_probs):
+    p = sigmoid(sample_users.dot(weight_vector))
+    sum_prob = np.sum(p * action_probs, axis=1)
+    # using law of total variance
+    evpv = np.sum((p * (1 - p)) * action_probs, axis=1)
+    vhm = np.sum(action_probs * (p ** 2), axis=1) - sum_prob ** 2
+
+    return sum_prob.mean(), (evpv + vhm).mean()
 
 
 np.random.seed(321)
@@ -35,7 +40,7 @@ sample_users = user_item_vectors[np.random.choice(user_item_vectors.shape[0], co
 true_weights = np.random.normal(0, 1, config['context_dim'])
 
 max_rewards = []
-for j in range(100):
+for j in range(1000):
     null_policy_weight = np.random.normal(0, 1, config['context_dim'])
 
     null_action_probs = softmax(sample_users.dot(null_policy_weight.T), axis=1)
@@ -55,15 +60,15 @@ for j in range(100):
     target_exp_rewards = []
     target_var_rewards = []
 
-    for i in range(100):
-        
-        target_actions = policy_grad.act(sample_users)
+    for i in range(200):
+        target_actions, target_action_probs = policy_grad.act(sample_users)
+        target_actions = target_actions.nonzero()[2]
 
         target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
 
         target_reward_vec = cme_estimator.estimate(target_feature_vec)
         target_reward = target_reward_vec.sum()
-        expected_reward, var_reward = get_expected_var_reward(true_weights, target_actions)
+        expected_reward, var_reward = get_expected_var_reward(true_weights, target_action_probs)
         target_cme_rewards.append(target_reward)
         target_exp_rewards.append(expected_reward)
         target_var_rewards.append(var_reward)
@@ -79,23 +84,21 @@ for j in range(100):
     max_rewards.append(max_reward)
 
 print("FINISH TRAINING !!!")
-target_reward, _ = get_expected_var_reward(true_weights, target_actions)
+target_reward, _ = get_expected_var_reward(true_weights, target_action_probs)
 
 optimal_actions = np.argmax(sample_users.dot(true_weights.T), axis=1)
-optimal_reward, _ = get_expected_var_reward(true_weights, optimal_actions)
+optimal_action_probs = np.zeros((optimal_actions.shape[0], sample_users.shape[1]))
+optimal_action_probs[np.arange(optimal_actions.shape[0]), optimal_actions] = 1
+optimal_reward, _ = get_expected_var_reward(true_weights, optimal_action_probs)
 
 print("Target policy: Expecrted reward: {}".format(target_reward))
 print("Optimal policy: Expected reward: {}".format(optimal_reward))
 
-pd.DataFrame(optimal_reward-max_rewards).hist(bins=10)
+pd.DataFrame(optimal_reward - max_rewards).hist(bins=10)
 plt.show()
 
-# ----------------------- PLOTTING ---------------------------
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.colors import colorConverter as cc
-import numpy as np
+# ----------------------- PLOTTING ---------------------------
 
 
 def plot_mean_and_CI(mean, lb, ub, color_mean=None, color_shading=None):
@@ -112,6 +115,7 @@ ub0 = mean0 + 2 * np.array(np.sqrt(target_var_rewards))
 lb0 = mean0 - 2 * np.array(np.sqrt(target_var_rewards))
 
 mean1 = np.array(target_cme_rewards)
+
 mean2 = np.repeat(optimal_reward, len(target_cme_rewards))
 
 # plot the data
@@ -146,6 +150,7 @@ class LegendObject(object):
             handlebox.add_artist(patch1)
 
         return patch
+
 
 bg = np.array([1, 1, 1])  # background of the legend is white
 colors = ['blue', 'green', 'red']
