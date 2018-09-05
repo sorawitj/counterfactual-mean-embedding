@@ -1,12 +1,16 @@
+import sys
+sys.path.append("../policy_evaluation/")
+
 from CME import *
 from ParameterSelector import *
 from PolicyGradient import *
 import numpy as np
+import matplotlib.pyplot as plt
 
 config = {
     "n_users": 10,
     "n_items": 5,
-    "n_observation": 3000,
+    "n_observation": 2000,
     "context_dim": 10,
     'learning_rate': 0.01
 }
@@ -51,7 +55,8 @@ for j in range(100):
     target_exp_rewards = []
     target_var_rewards = []
 
-    for i in range(200):
+    for i in range(100):
+        
         target_actions = policy_grad.act(sample_users)
 
         target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
@@ -107,7 +112,6 @@ ub0 = mean0 + 2 * np.array(np.sqrt(target_var_rewards))
 lb0 = mean0 - 2 * np.array(np.sqrt(target_var_rewards))
 
 mean1 = np.array(target_cme_rewards)
-
 mean2 = np.repeat(optimal_reward, len(target_cme_rewards))
 
 # plot the data
@@ -142,7 +146,6 @@ class LegendObject(object):
             handlebox.add_artist(patch1)
 
         return patch
-
 
 bg = np.array([1, 1, 1])  # background of the legend is white
 colors = ['blue', 'green', 'red']
