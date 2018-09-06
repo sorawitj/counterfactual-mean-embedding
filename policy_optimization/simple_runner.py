@@ -81,7 +81,6 @@ user_item_vectors = np.random.normal(0, 1, size=(config['n_users'], config['n_it
 true_weights = np.random.normal(0, 1, config['context_dim'])
 null_policy_weight = np.random.normal(0, 1, config['context_dim'])
 
-max_rewards = []
 for n_obs in [1000, 5000, 10000]:
     exp_reward, var_reward, cme_reward, optimal_reward = \
         run_iteration(user_item_vectors,
@@ -93,15 +92,4 @@ for n_obs in [1000, 5000, 10000]:
                 cme_reward,
                 var_reward,
                 optimal_reward,
-                "cpg_5_n_obs_{}.pdf".format(n_obs))
-
-    # max_reward = np.max(exp_reward)
-    # max_rewards.append(max_reward)
-    # print("finish {}".format(j))
-
-print("FINISH TRAINING !!!")
-
-# pd.DataFrame(optimal_reward - max_rewards).to_csv("resv1.csv",header=False,index=False)
-#
-# pd.DataFrame(optimal_reward - max_rewards).hist(bins=20)
-# plt.show()
+                "policy_optimization/_result/cpg_5_n_obs_{}.pdf".format(n_obs))
