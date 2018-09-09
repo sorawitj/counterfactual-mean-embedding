@@ -6,45 +6,32 @@ from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 
 class DR(object):
 
-    def __init__(self, n_reco, null_policy, target_policy, params=(40, 1024, 100)):
-        """
-        :param n_reco: number of recommendation
-        :param null_policy: a policy used to generate data
-        :param target_policy: a policy that we want to estimate its reward
-
-        """
-        super().__init__(n_reco, null_policy, target_policy)
+    def __init__(self, null_feature_vec, null_propensity, null_reward, params=(40, 1024, 100)):
+        self.null_feature_vec = null_feature_vec
+        self.null_propensity = null_propensity
+        self.null_reward = null_reward
         self.params = params
 
-    def estimate(self, data):
-        data = data.copy()
-
-        null_context_vec = data['null_context_vec'].dropna(axis=0)
-        null_reco_vec = data['null_reco_vec'].dropna(axis=0)
-        null_reward = data['null_reward'].dropna(axis=0)
-        target_context_vec = data['target_context_vec'].dropna(axis=0)
-        target_reco_vec = data['target_reco_vec'].dropna(axis=0)
-
-        context_dim = null_context_vec.iloc[0].shape[0]
-        reco_dim = null_reco_vec.iloc[0].shape[0]
+        dim = null_feature_vec.shape[1]
 
         hidden_units = [self.params[0]]
-        feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
-                           tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
-        classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
+        feature_columns = [tf.feature_column.numeric_column('feature_vec', shape=(dim,))]
+        self.classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
                                                 feature_columns=feature_columns,
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        null_numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
-                            'reco_vec': np.stack(null_reco_vec.as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, null_reward.as_matrix(),
+        null_numpy_input = {'feature_vec': np.stack(self.null_feature_vec)}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, null_reward,
                                                             batch_size=self.params[1], num_epochs=self.params[2],
                                                             shuffle=True)
-        classifier.train(input_fn=train_input_fn)
+        self.classifier.train(input_fn=train_input_fn)
 
-        target_numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
-                              'reco_vec': np.stack(target_reco_vec.as_matrix())}
+        
+    def estimate(self, target_feature_vec, target_propensity):
+
+        null_numpy_input = {'feature_vec': np.stack(self.null_feature_vec)}
+        target_numpy_input = {'feature_vec': np.stack(target_feature_vec)}
 
         null_pred_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, batch_size=self.params[1],
                                                                 num_epochs=1,
@@ -56,15 +43,15 @@ class DR(object):
         null_predictions = []
         target_predictions = []
 
-        null_prediction = classifier.predict(null_pred_input_fn)
+        null_prediction = self.classifier.predict(null_pred_input_fn)
         for null_p in null_prediction:
             null_predictions.append(null_p['class_ids'][0])
 
-        target_prediction = classifier.predict(target_pred_input_fn)
+        target_prediction = self.classifier.predict(target_pred_input_fn)
         for target_p in target_prediction:
             target_predictions.append(target_p['class_ids'][0])
 
-        ips_w = winsorize(sim_data.apply(self.calculate_weight, axis=1), (0.0, 0.01))
-        estimated_reward = target_predictions + (null_reward - null_predictions) * ips_w
+        ips_weight = target_propensity / self.null_propensity
+        estimated_reward = target_predictions + (self.null_reward - null_predictions) * ips_weight
 
-        return np.mean(estimated_reward)
+        return estimated_reward

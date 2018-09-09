@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../policy_evaluation/")
+
 from CME import *
 from ParameterSelector import *
 from PolicyGradient import *
@@ -92,4 +95,4 @@ for n_obs in [1000, 5000, 10000]:
                 cme_reward,
                 var_reward,
                 optimal_reward,
-                "policy_optimization/_result/cpg_5_n_obs_{}.pdf".format(n_obs))
+                "_result/cpg_5_n_obs_{}.pdf".format(n_obs))

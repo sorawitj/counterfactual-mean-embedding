@@ -6,41 +6,32 @@ from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 
 class Direct(object):
 
-    def __init__(self, null_feature_vec, null_rewards):
+    def __init__(self, null_feature_vec, null_reward, params=(40, 1024, 100)):
+        self.null_feature_vec = null_feature_vec
+        self.null_reward = null_reward
         self.params = params
 
-    def estimate(self, data):
-        data = data.copy()
-
-        null_context_vec = data['null_context_vec'].dropna(axis=0)
-        null_reco_vec = data['null_reco_vec'].dropna(axis=0)
-        target_context_vec = data['target_context_vec'].dropna(axis=0)
-        target_reco_vec = data['target_reco_vec'].dropna(axis=0)
-        null_reward = data['null_reward'].dropna(axis=0)
-
-        context_dim = null_context_vec.iloc[0].shape[0]
-        reco_dim = null_reco_vec.iloc[0].shape[0]
-
+        # train a classifier
+        dim = self.null_feature_vec.shape[1]
         hidden_units = [self.params[0]]
-        feature_columns = [tf.feature_column.numeric_column('context_vec', shape=(context_dim,)),
-                           tf.feature_column.numeric_column('reco_vec', shape=(reco_dim,))]
-        classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
+        feature_columns = [tf.feature_column.numeric_column('feature_vec', shape=(dim,))]
+        self.classifier = tf.estimator.DNNClassifier(hidden_units=hidden_units,
                                                 feature_columns=feature_columns,
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
-                       'reco_vec': np.stack(null_reco_vec.as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, null_reward.as_matrix(),
+        numpy_input = {'feature_vec': np.stack(self.null_feature_vec)}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, self.null_reward,
                                                             batch_size=self.params[1], num_epochs=self.params[2],
                                                             shuffle=True)
-        classifier.train(input_fn=train_input_fn)
+        self.classifier.train(input_fn=train_input_fn)
+        
+    def estimate(self, target_feature_vec):
 
-        numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
-                       'reco_vec': np.stack(target_reco_vec.as_matrix())}
+        numpy_input = {'feature_vec': np.stack(target_feature_vec)}
         pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=self.params[1], num_epochs=1,
                                                            shuffle=False)
-        prediction = classifier.predict(pred_input_fn)
+        prediction = self.classifier.predict(pred_input_fn)
         total_reward = 0
         n = 0
         for p in prediction:
