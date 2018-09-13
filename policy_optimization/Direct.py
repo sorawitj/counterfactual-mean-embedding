@@ -1,12 +1,14 @@
 from ParameterSelector import *
 import numpy as np
 
+
 class Direct(object):
 
     def __init__(self, null_feature_vec, null_reward, params=(40, 1024, 100)):
         self.null_feature_vec = null_feature_vec
         self.null_reward = null_reward
         self.params = params
+        self.batch_size = len(null_feature_vec)
 
         # train a classifier
         dim = self.null_feature_vec.shape[1]
@@ -27,7 +29,7 @@ class Direct(object):
             """ An example input function to pass to predict. It must take a generator as input """
 
             def _inner_input_fn():
-                dataset = tf.data.Dataset().from_generator(generator, output_types=(tf.float32)).batch(3000)
+                dataset = tf.data.Dataset().from_generator(generator, output_types=(tf.float32)).batch(self.batch_size)
                 iterator = dataset.make_one_shot_iterator()
                 features = iterator.get_next()
                 return {'feature_vec': features}

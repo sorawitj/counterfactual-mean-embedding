@@ -123,7 +123,7 @@ estimators = ['DR', 'Direct', 'wIPS', 'CME']
 exp_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
 
-for n_obs in [3000]:
+for n_obs in [5000]:
 
     for i in range(len(estimators)):
         exp_rewards[i], var_rewards[i], cme_reward, optimal_reward = \
