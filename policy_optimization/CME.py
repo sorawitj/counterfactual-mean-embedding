@@ -13,9 +13,9 @@ class CME(object):
         self.null_rewards = null_rewards
 
         # use median heuristic for the bandwidth parameters
-        null_kernel_param = (0.5 * self.kernel_param) / np.median(pdist(null_feature_vec, 'sqeuclidean'))
+        self.null_kernel_param = (0.5 * self.kernel_param) / np.median(pdist(null_feature_vec, 'sqeuclidean'))
 
-        nullContextMatrix = rbf_kernel(null_feature_vec, null_feature_vec, null_kernel_param)
+        nullContextMatrix = rbf_kernel(null_feature_vec, null_feature_vec, self.null_kernel_param)
 
         self.n = null_feature_vec.shape[0]
         A = nullContextMatrix + np.diag(np.repeat(self.n * self.reg_param, self.n))
@@ -26,7 +26,7 @@ class CME(object):
          Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
          """
 
-        target_kernel_param = (0.5 * self.kernel_param) / np.median(pdist(target_feature_vec, 'sqeuclidean'))
+        target_kernel_param = (0.5 * self.kernel_param) / np.median(pdist(np.vstack([self.null_feature_vec, target_feature_vec]), 'sqeuclidean'))
         targetContextMatrix = rbf_kernel(self.null_feature_vec, target_feature_vec, target_kernel_param)
         B = np.dot(targetContextMatrix, np.repeat(1.0 / self.n, self.n, axis=0))
         beta_vec = np.matmul(self.A_inv, B)

@@ -80,7 +80,6 @@ def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observa
         elif est == 'wIPS':
             target_reward_vec = estimator.estimate(
                 target_action_probs[np.arange(len(sample_users)), target_actions])
-            target_reward_vec = target_reward_vec
         elif est == 'DR':
             target_reward_vec = estimator.estimate(target_feature_vec, target_action_probs[
                 np.arange(len(sample_users)), target_actions])
