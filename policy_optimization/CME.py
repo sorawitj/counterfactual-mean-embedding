@@ -1,7 +1,6 @@
 from ParameterSelector import *
 import numpy as np
-import pandas as pd
-from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
+from sklearn.metrics.pairwise import rbf_kernel
 
 
 class CME(object):
@@ -33,4 +32,4 @@ class CME(object):
         beta_vec = np.matmul(self.A_inv, B)
         target_reward = beta_vec * self.null_rewards
 
-        return target_reward
+        return target_reward * len(beta_vec)
