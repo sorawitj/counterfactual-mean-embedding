@@ -14,19 +14,14 @@ import numpy as np
 
 config = {
     "n_users": 100,
-    "n_items": 5,
+    "n_items": 20,
     "context_dim": 10,
-    'learning_rate': 0.05
+    'learning_rate': 0.02
 }
 
 
-def get_sample_rewards(weight_vector, actions, sample_users):
-    return np.random.binomial(1, p=sigmoid(
-        sample_users[np.arange(len(sample_users)), actions, :].dot(weight_vector.T)))
-
-
-def get_expected_var_reward(weight_vector, action_probs, sample_users):
-    p = sigmoid(sample_users.dot(weight_vector))
+def get_expected_var_reward(item_vectors, action_probs, sample_users):
+    p = sigmoid(sample_users.dot(item_vectors.T))
     sum_prob = np.sum(p * action_probs, axis=1)
     # using law of total variance
     evpv = np.sum((p * (1 - p)) * action_probs, axis=1)
@@ -35,23 +30,25 @@ def get_expected_var_reward(weight_vector, action_probs, sample_users):
     return sum_prob.mean(), (evpv + vhm).mean()
 
 
-def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observation, num_iter, est='CME'):
-    sample_users = user_item_vectors[np.random.choice(user_item_vectors.shape[0], n_observation, True), :]
+def run_iteration(user_vectors, item_vectors, null_policy_weight, n_observation, num_iter, est='CME'):
+    sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_observation, True), :]
 
     null_action_probs = softmax(sample_users.dot(null_policy_weight.T), axis=1)
     null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
-    null_rewards = get_sample_rewards(true_weights, null_actions, sample_users)
-    null_feature_vec = sample_users[np.arange(len(sample_users)), null_actions, :]
+    null_action_vec = item_vectors[null_actions]
+    null_rewards = np.random.binomial(1, p=sigmoid(np.sum(sample_users * null_action_vec, axis=1)))
 
     # decide which estimator to use
     if est == 'Direct':
+        null_feature_vec = np.hstack([sample_users, null_action_vec])
         estimator = Direct(null_feature_vec, null_rewards)
     elif est == 'wIPS':
         estimator = wIPS(null_action_probs[np.arange(len(sample_users)), null_actions], null_rewards)
     elif est == 'DR':
+        null_feature_vec = np.hstack([sample_users, null_action_vec])
         estimator = DR(null_feature_vec, null_action_probs[np.arange(len(sample_users)), null_actions], null_rewards)
     elif est == 'CME':
-        estimator = CME(null_feature_vec, null_rewards)
+        estimator = CME(sample_users, null_action_vec, null_rewards)
     else:
         sys.exit(1)
 
@@ -69,26 +66,27 @@ def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observa
 
         target_actions, target_action_probs = policy_grad.act(sample_users)
         target_actions = target_actions.nonzero()[2]
-
-        target_feature_vec = sample_users[np.arange(len(sample_users)), target_actions, :]
+        target_action_vec = item_vectors[target_actions]
 
         train_actions = null_actions
         # estimation
         if est == 'Direct':
+            target_feature_vec = np.hstack([sample_users, target_action_vec])
             target_reward_vec = estimator.estimate(target_feature_vec)
             train_actions = target_actions
         elif est == 'wIPS':
             target_reward_vec = estimator.estimate(
                 target_action_probs[np.arange(len(sample_users)), target_actions])
         elif est == 'DR':
+            target_feature_vec = np.hstack([sample_users, target_action_vec])
             target_reward_vec = estimator.estimate(target_feature_vec, target_action_probs[
                 np.arange(len(sample_users)), target_actions])
             train_actions = target_actions
         elif est == 'CME':
-            target_reward_vec = estimator.estimate(target_feature_vec)
+            target_reward_vec = estimator.estimate(sample_users, target_action_vec)
 
         target_reward = target_reward_vec.mean()
-        expected_reward, var_reward = get_expected_var_reward(true_weights, target_action_probs, sample_users)
+        expected_reward, var_reward = get_expected_var_reward(item_vectors, target_action_probs, sample_users)
         target_cme_rewards.append(target_reward)
         target_exp_rewards.append(expected_reward)
         target_var_rewards.append(var_reward / n_observation)
@@ -102,10 +100,10 @@ def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observa
 
     sess.close()
 
-    optimal_actions = np.argmax(sample_users.dot(true_weights.T), axis=1)
-    optimal_action_probs = np.zeros((optimal_actions.shape[0], sample_users.shape[1]))
+    optimal_actions = np.argmax(sample_users.dot(item_vectors.T), axis=1)
+    optimal_action_probs = np.zeros((optimal_actions.shape[0], config['n_items']))
     optimal_action_probs[np.arange(optimal_actions.shape[0]), optimal_actions] = 1
-    optimal_reward, _ = get_expected_var_reward(true_weights, optimal_action_probs, sample_users)
+    optimal_reward, _ = get_expected_var_reward(item_vectors, optimal_action_probs, sample_users)
 
     return target_exp_rewards, target_var_rewards, target_cme_rewards, optimal_reward
 
@@ -114,12 +112,13 @@ def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observa
 
 np.random.seed(321)
 
-user_item_vectors = np.random.normal(0, 1, size=(config['n_users'], config['n_items'], config['context_dim']))
-true_weights = np.random.normal(0, 1, config['context_dim'])
-null_policy_weight = np.random.normal(0, 1, config['context_dim'])
+user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim']))
+item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
 
-num_iter = 200
-estimators = ['DR', 'Direct', 'wIPS', 'CME']
+null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
+
+num_iter = 500
+estimators = ['CME', 'Direct', 'wIPS']
 exp_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
 
@@ -127,8 +126,8 @@ for n_obs in [5000]:
 
     for i in range(len(estimators)):
         exp_rewards[i], var_rewards[i], cme_reward, optimal_reward = \
-            run_iteration(user_item_vectors,
-                          true_weights,
+            run_iteration(user_vectors,
+                          item_vectors,
                           null_policy_weight,
                           n_obs,
                           num_iter,
