@@ -17,6 +17,7 @@ class PolicyGradientAgent(object):
         self.logits = tf.layers.dense(
             inputs=self._input,
             units=config['n_items'],
+            use_bias=False,
             kernel_initializer=initializer)
 
         self.action_probs = tf.nn.softmax(self.logits)

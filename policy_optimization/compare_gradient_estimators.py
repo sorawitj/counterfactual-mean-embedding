@@ -13,7 +13,7 @@ from plot_fn import *
 import numpy as np
 
 config = {
-    "n_users": 100,
+    "n_users": 500,
     "n_items": 20,
     "context_dim": 10,
     'learning_rate': 0.02
@@ -30,9 +30,7 @@ def get_expected_var_reward(item_vectors, action_probs, sample_users):
     return sum_prob.mean(), (evpv + vhm).mean()
 
 
-def run_iteration(user_vectors, item_vectors, null_policy_weight, n_observation, num_iter, est='CME'):
-    sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_observation, True), :]
-
+def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation, num_iter, est='CME'):
     null_action_probs = softmax(sample_users.dot(null_policy_weight.T), axis=1)
     null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
     null_action_vec = item_vectors[null_actions]
@@ -59,7 +57,7 @@ def run_iteration(user_vectors, item_vectors, null_policy_weight, n_observation,
     policy_grad_graph = tf.Graph()
     sess = tf.Session(graph=policy_grad_graph)
     with policy_grad_graph.as_default():
-        policy_grad = PolicyGradientAgent(config, sess, null_policy_weight)
+        policy_grad = PolicyGradientAgent(config, sess, null_policy_weight.T)
         sess.run(tf.global_variables_initializer())
 
     for i in range(num_iter):
@@ -115,7 +113,8 @@ np.random.seed(321)
 user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim']))
 item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
 
-null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
+# null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
+null_policy_weight = -.5*item_vectors
 
 num_iter = 500
 estimators = ['CME', 'Direct', 'wIPS']
@@ -123,10 +122,11 @@ exp_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
 
 for n_obs in [5000]:
+    sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
 
     for i in range(len(estimators)):
         exp_rewards[i], var_rewards[i], cme_reward, optimal_reward = \
-            run_iteration(user_vectors,
+            run_iteration(sample_users,
                           item_vectors,
                           null_policy_weight,
                           n_obs,
