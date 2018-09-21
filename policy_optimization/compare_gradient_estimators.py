@@ -14,9 +14,9 @@ import numpy as np
 
 config = {
     "n_users": 500,
-    "n_items": 20,
+    "n_items": 50,
     "context_dim": 10,
-    'learning_rate': 0.02
+    'learning_rate': 0.01
 }
 
 
@@ -93,7 +93,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
 
         if i % 20 == 0:
             print("iter {}, Expected reward: {}".format(i, expected_reward))
-            print("iter {}, CME reward: {}".format(i, target_reward))
+            print("iter {}, Predicted reward: {}".format(i, target_reward))
             print("iter {}, loss: {}".format(i, loss))
 
     sess.close()
