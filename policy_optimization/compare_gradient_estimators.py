@@ -13,10 +13,10 @@ from plot_fn import *
 import numpy as np
 
 config = {
-    "n_users": 500,
-    "n_items": 50,
+    "n_users": 100,
+    "n_items": 20,
     "context_dim": 10,
-    'learning_rate': 0.01
+    'learning_rate': 0.025
 }
 
 
@@ -50,7 +50,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
     else:
         sys.exit(1)
 
-    target_cme_rewards = []
+    target_pred_rewards = []
     target_exp_rewards = []
     target_var_rewards = []
 
@@ -85,7 +85,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
 
         target_reward = target_reward_vec.mean()
         expected_reward, var_reward = get_expected_var_reward(item_vectors, target_action_probs, sample_users)
-        target_cme_rewards.append(target_reward)
+        target_pred_rewards.append(target_reward)
         target_exp_rewards.append(expected_reward)
         target_var_rewards.append(var_reward / n_observation)
 
@@ -103,29 +103,44 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
     optimal_action_probs[np.arange(optimal_actions.shape[0]), optimal_actions] = 1
     optimal_reward, _ = get_expected_var_reward(item_vectors, optimal_action_probs, sample_users)
 
-    return target_exp_rewards, target_var_rewards, target_cme_rewards, optimal_reward
+    return target_exp_rewards, target_var_rewards, target_pred_rewards, optimal_reward
 
 
 ### SIMULATION STARTS HERE ###
 
 np.random.seed(321)
 
-user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim']))
-item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
+user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
+item_components = np.random.choice(3, size=config['n_items'], p=(0.3, 0.5, 0.2), replace=True)
 
+mu_users = np.array([1, -1, 3, -2, 0])
+sd_users = np.array([1, -1, 3, -2, 0])
+mu_items = np.array([0.1, 1, 3, 2, 1])
+sd_items = np.array([1, 0.1, 2])
+
+user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'])) \
+               * np.expand_dims(sd_users[user_components], 1) + np.expand_dims(mu_users[user_components], 1)
+item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
+               * np.expand_dims(sd_items[item_components], 1) + np.expand_dims(mu_items[item_components], 1)
+
+
+# create random null policy
 # null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
-null_policy_weight = -.5*item_vectors
 
-num_iter = 500
-estimators = ['CME', 'Direct', 'wIPS']
+# create null policy which is different from the optimal policy
+null_policy_weight = -.3 * item_vectors
+
+num_iter = 300
+estimators = ['Direct', 'CME', 'wIPS']
 exp_rewards = np.zeros((len(estimators), num_iter))
+pred_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
 
-for n_obs in [5000]:
+for n_obs in [3000, 10000]:
     sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
 
     for i in range(len(estimators)):
-        exp_rewards[i], var_rewards[i], cme_reward, optimal_reward = \
+        exp_rewards[i], var_rewards[i], pred_rewards[i], optimal_reward = \
             run_iteration(sample_users,
                           item_vectors,
                           null_policy_weight,
@@ -134,8 +149,9 @@ for n_obs in [5000]:
                           estimators[i])
 
     plot_comparison_result(exp_rewards,
+                           pred_rewards,
                            var_rewards,
                            optimal_reward,
-                           "policy_optimization/_result/compare_est_n_obs_{}.pdf".format(n_obs),
+                           "policy_optimization/_result/compare_est_random_n_obs_{}.pdf".format(n_obs),
                            "Comparison",
                            estimators)

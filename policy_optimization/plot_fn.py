@@ -80,27 +80,29 @@ def plot_result(target_exp_rewards,
     fig.savefig(save_name)
 
 
-def plot_comparison_result(target_exp_rewards,                               
-                               target_var_rewards,
-                               optimal_reward,
-                               save_name,
-                               plot_title,
-                               plot_legends):
-
+def plot_comparison_result(target_exp_rewards,
+                           pred_rewards,
+                           target_var_rewards,
+                           optimal_reward,
+                           save_name,
+                           plot_title,
+                           plot_legends):
     # generate sets of random means and confidence intervals to plot
     mu = np.array(target_exp_rewards)
+    pred = np.array(pred_rewards)
     ub = mu + 2 * np.array(np.sqrt(target_var_rewards))
     lb = mu - 2 * np.array(np.sqrt(target_var_rewards))
 
     if mu.ndim == 1:
-        mu = mu[np.newaxis,:]
-        ub = ub[np.newaxis,:]
-        lb = lb[np.newaxis,:]
+        mu = mu[np.newaxis, :]
+        pred = pred[np.newaxis, :]
+        ub = ub[np.newaxis, :]
+        lb = lb[np.newaxis, :]
 
     num_plots = mu.shape[0]
 
     opt_mean = np.repeat(optimal_reward, mu.shape[1])
-    
+
     # plot the data
     fig = plt.figure(1, figsize=(8, 3.0))
     plt.plot(opt_mean, 'r--')
@@ -109,10 +111,11 @@ def plot_comparison_result(target_exp_rewards,
     colors = ['blue', 'green', 'cyan', 'magenta']
     # with alpha = .5, the faded color is the average of the background and color
     colors_faded = [(np.array(cc.to_rgb(color)) + bg) / 2.0 for color in colors]
-    
+
     for i in range(num_plots):
-        plot_mean_and_CI(mu[i,:], ub[i,:], lb[i,:], color_mean=colors[i], color_shading=colors_faded[i])
-    
+        plot_mean_and_CI(mu[i, :], ub[i, :], lb[i, :], color_mean=colors[i], color_shading=colors_faded[i])
+        plt.plot(pred[i, :], colors[i], linestyle='dashed')
+
     class LegendObject(object):
         def __init__(self, facecolor='red', edgecolor='white', dashed=False):
             self.facecolor = facecolor
