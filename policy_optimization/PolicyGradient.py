@@ -8,16 +8,17 @@ class PolicyGradientAgent(object):
 
         # build the graph
         self._input = tf.placeholder(tf.float32,
-                                     shape=[None, config['n_items'], config['context_dim']])
+                                     shape=[None, config['context_dim']])
 
         initializer = None
         if initial_weight is not None:
             initializer = tf.constant_initializer(initial_weight)
 
-        self.logits = tf.squeeze(tf.layers.dense(
+        self.logits = tf.layers.dense(
             inputs=self._input,
-            units=1,
-            kernel_initializer=initializer))
+            units=config['n_items'],
+            use_bias=False,
+            kernel_initializer=initializer)
 
         self.action_probs = tf.nn.softmax(self.logits)
 
