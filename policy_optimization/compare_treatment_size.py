@@ -14,7 +14,7 @@ import numpy as np
 
 config = {
     "n_users": 100,
-    "n_items": 30,
+    "n_items": 5,
     "context_dim": 10,
     'learning_rate': 0.05
 }
@@ -118,7 +118,7 @@ user_item_vectors = np.random.normal(0, 1, size=(config['n_users'], config['n_it
 true_weights = np.random.normal(0, 1, config['context_dim'])
 null_policy_weight = np.random.normal(0, 1, config['context_dim'])
 
-num_iter = 200
+num_iter = 300
 estimators = ['DR', 'Direct', 'wIPS', 'CME']
 exp_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
