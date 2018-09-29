@@ -29,8 +29,11 @@ class CME(object):
          Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
          """
 
-        targetContextMatrix = rbf_kernel(self.null_context_vec, target_context_vec, self.null_context_param)
-        targetTreatmentMatrix = rbf_kernel(self.null_treatment_vec, target_treatment_vec, self.null_treatment_param)
+        target_context_param = (0.5 * self.kernel_param) / np.median(pdist(np.vstack((self.null_context_vec,target_context_vec)), 'sqeuclidean'))
+        target_treatment_param = (0.5 * self.kernel_param) / np.median(pdist(np.vstack((self.null_treatment_vec,target_treatment_vec)), 'sqeuclidean'))
+        
+        targetContextMatrix = rbf_kernel(self.null_context_vec, target_context_vec, target_context_param)
+        targetTreatmentMatrix = rbf_kernel(self.null_treatment_vec, target_treatment_vec, target_treatment_param)
 
         B = np.dot(np.multiply(targetContextMatrix, targetTreatmentMatrix), np.repeat(1.0 / self.n, self.n, axis=0))
         beta_vec = np.matmul(self.A_inv, B)

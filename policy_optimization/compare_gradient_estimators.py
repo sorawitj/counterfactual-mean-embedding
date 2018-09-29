@@ -136,7 +136,7 @@ exp_rewards = np.zeros((len(estimators), num_iter))
 pred_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
 
-for n_obs in [3000, 10000]:
+for n_obs in [3000]:
     sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
 
     for i in range(len(estimators)):
@@ -152,6 +152,6 @@ for n_obs in [3000, 10000]:
                            pred_rewards,
                            var_rewards,
                            optimal_reward,
-                           "policy_optimization/_result/compare_est_random_n_obs_{}.pdf".format(n_obs),
+                           "_result/compare_est_random_n_obs_{}.pdf".format(n_obs),
                            "Comparison",
                            estimators)
