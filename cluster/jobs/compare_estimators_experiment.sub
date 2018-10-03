@@ -1,0 +1,9 @@
+executable = /usr/bin/python3 
+arguments = ../compare_estimators_experiment.py $(Process)
+error = compare_estimators_report/estimators.$(Process).err
+output = compare_estimators_report/estimators.$(Process).out
+log = compare_estimators_report/estimators.$(Process).log
+request_memory = 5048
+request_cpus = 10
+request_gpus = 0
+queue 3

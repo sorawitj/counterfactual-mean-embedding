@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import rbf_kernel
 class CME(object):
 
     def __init__(self, null_context_vec, null_treatment_vec, null_rewards):
-        reg_pow = -1
+        reg_pow = -2
         self.reg_param = (10.0 ** reg_pow) / null_context_vec.shape[0]
         self.kernel_param = (10.0 ** 0)
         self.null_context_vec = null_context_vec

@@ -1,7 +1,5 @@
 import sys
 
-sys.path.append("../policy_evaluation/")
-
 from CME import *
 from Direct import *
 from wIPS import *
@@ -11,6 +9,8 @@ from ParameterSelector import *
 from PolicyGradient import *
 from plot_fn import *
 import numpy as np
+
+import pickle
 
 config = {
     "n_users": 100,
@@ -108,50 +108,55 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
 
 ### SIMULATION STARTS HERE ###
 
-np.random.seed(321)
+if __name__ == "__main__":
 
-user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
-item_components = np.random.choice(3, size=config['n_items'], p=(0.3, 0.5, 0.2), replace=True)
+    try:
+        # get an index of a multiplier as an argument
+        estimator_index = int(sys.argv[1])
+    except:
+        sys.exit(1)
 
-mu_users = np.array([1, -1, 3, -2, 0])
-sd_users = np.array([1, -1, 3, -2, 0])
-mu_items = np.array([0.1, 1, 3, 2, 1])
-sd_items = np.array([1, 0.1, 2])
+    np.random.seed(321)
 
-user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'])) \
+    user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
+    item_components = np.random.choice(3, size=config['n_items'], p=(0.3, 0.5, 0.2), replace=True)
+
+    mu_users = np.array([1, -1, 3, -2, 0])
+    sd_users = np.array([1, -1, 3, -2, 0])
+    mu_items = np.array([0.1, 1, 3, 2, 1])
+    sd_items = np.array([1, 0.1, 2])
+
+    user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'])) \
                * np.expand_dims(sd_users[user_components], 1) + np.expand_dims(mu_users[user_components], 1)
-item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
+    item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
                * np.expand_dims(sd_items[item_components], 1) + np.expand_dims(mu_items[item_components], 1)
 
+    # create random null policy
+    # null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
 
-# create random null policy
-# null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
+    # create null policy which is different from the optimal policy
+    null_policy_weight = -.3 * item_vectors
 
-# create null policy which is different from the optimal policy
-null_policy_weight = -.3 * item_vectors
+    num_iter = 300
+    num_obs = 500
+    estimators = ['Direct', 'CME', 'wIPS']
+    exp_rewards = np.zeros((1, num_iter))
+    pred_rewards = np.zeros((1, num_iter))
+    var_rewards = np.zeros((1, num_iter))
 
-num_iter = 300
-estimators = ['Direct', 'CME', 'wIPS']
-exp_rewards = np.zeros((len(estimators), num_iter))
-pred_rewards = np.zeros((len(estimators), num_iter))
-var_rewards = np.zeros((len(estimators), num_iter))
+    sample_users = user_vectors[np.random.choice(user_vectors.shape[0], num_obs, True), :]
 
-for n_obs in [500]:
-    sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
+    exp_rewards, var_rewards, pred_rewards, optimal_reward = \
+      run_iteration(sample_users,
+                        item_vectors,
+                        null_policy_weight,
+                        num_obs,
+                        num_iter,
+                        estimators[estimator_index])
 
-    for i in range(len(estimators)):
-        exp_rewards[i], var_rewards[i], pred_rewards[i], optimal_reward = \
-            run_iteration(sample_users,
-                          item_vectors,
-                          null_policy_weight,
-                          n_obs,
-                          num_iter,
-                          estimators[i])
-
-    plot_comparison_result(exp_rewards,
-                           pred_rewards,
-                           var_rewards,
-                           optimal_reward,
-                           "_result/compare_est_random_n_obs_{}.pdf".format(n_obs),
-                           "Comparison",
-                           estimators)
+    # save the results
+    with open("../compare_estimators_result/compare_{}_random_n_obs_{}.pickle".format(estimators[estimator_index],num_obs), 'wb') as handle:
+        pickle.dump(exp_rewards, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(pred_rewards, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(var_rewards, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(optimal_reward, handle, protocol=pickle.HIGHEST_PROTOCOL)
