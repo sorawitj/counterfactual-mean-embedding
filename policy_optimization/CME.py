@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import rbf_kernel
 class CME(object):
 
     def __init__(self, null_context_vec, null_treatment_vec, null_rewards):
-        reg_pow = -2
+        reg_pow = -1
         self.reg_param = (10.0 ** reg_pow) / null_context_vec.shape[0]
         self.kernel_param = (10.0 ** 0)
         self.null_context_vec = null_context_vec
@@ -29,11 +29,13 @@ class CME(object):
          Calculate and return a coefficient vector (beta) of the counterfactual mean embedding of reward distribution.
          """
 
-        target_context_param = (0.5 * self.kernel_param) / np.median(pdist(np.vstack((self.null_context_vec,target_context_vec)), 'sqeuclidean'))
-        target_treatment_param = (0.5 * self.kernel_param) / np.median(pdist(np.vstack((self.null_treatment_vec,target_treatment_vec)), 'sqeuclidean'))
-        
-        targetContextMatrix = rbf_kernel(self.null_context_vec, target_context_vec, target_context_param)
-        targetTreatmentMatrix = rbf_kernel(self.null_treatment_vec, target_treatment_vec, target_treatment_param)
+        self.target_context_param = (0.5 * self.kernel_param) / np.median(
+            pdist(np.vstack([self.null_context_vec, target_context_vec]), 'sqeuclidean'))
+        self.target_treatment_param = (0.5 * self.kernel_param) / np.median(
+            pdist(np.vstack([self.null_treatment_vec, target_treatment_vec]), 'sqeuclidean'))
+
+        targetContextMatrix = rbf_kernel(self.null_context_vec, target_context_vec, self.target_context_param)
+        targetTreatmentMatrix = rbf_kernel(self.null_treatment_vec, target_treatment_vec, self.target_treatment_param)
 
         B = np.dot(np.multiply(targetContextMatrix, targetTreatmentMatrix), np.repeat(1.0 / self.n, self.n, axis=0))
         beta_vec = np.matmul(self.A_inv, B)

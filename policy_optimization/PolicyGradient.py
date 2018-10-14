@@ -8,7 +8,7 @@ class PolicyGradientAgent(object):
 
         # build the graph
         self._input = tf.placeholder(tf.float32,
-                                     shape=[None, config['context_dim']])
+                                     shape=[None, config['context_dim'] + 1])
 
         initializer = None
         if initial_weight is not None:
@@ -17,7 +17,6 @@ class PolicyGradientAgent(object):
         self.logits = tf.layers.dense(
             inputs=self._input,
             units=config['n_items'],
-            use_bias=False,
             kernel_initializer=initializer)
 
         self.action_probs = tf.nn.softmax(self.logits)

@@ -84,6 +84,7 @@ def plot_comparison_result(target_exp_rewards,
                            pred_rewards,
                            target_var_rewards,
                            optimal_reward,
+                           baseline_reward,
                            save_name,
                            plot_title,
                            plot_legends):
@@ -102,10 +103,12 @@ def plot_comparison_result(target_exp_rewards,
     num_plots = mu.shape[0]
 
     opt_mean = np.repeat(optimal_reward, mu.shape[1])
+    baseline_mean = np.repeat(baseline_reward, mu.shape[1])
 
     # plot the data
     fig = plt.figure(1, figsize=(8, 3.0))
     plt.plot(opt_mean, 'r--')
+    plt.plot(baseline_mean, 'black')
 
     bg = np.array([1, 1, 1])  # background of the legend is white
     colors = ['blue', 'green', 'cyan', 'magenta']
