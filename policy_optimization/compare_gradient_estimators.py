@@ -16,13 +16,21 @@ config = {
     "n_users": 200,
     "n_items": 20,
     "context_dim": 10,
-    'learning_rate': 0.02
+    'learning_rate': 0.01
 }
 
 
+def get_greedy_reward(item_vectors, actions, sample_users):
+    action_vec = item_vectors[actions]
+    rewards = np.random.binomial(1, p=sigmoid(
+        .5 * (np.sum(sample_users[:, :-1] * action_vec, axis=1) +
+              sample_users[:, -1])))
+    return rewards
+
+
 def get_expected_var_reward(item_vectors, action_probs, sample_users):
-    p = sigmoid(sample_users[:, :-1].dot(item_vectors.T) +
-                sample_users[:, -1, np.newaxis])
+    p = sigmoid(.5 * (sample_users[:, :-1].dot(item_vectors.T) +
+                      sample_users[:, -1, np.newaxis]))
     sum_prob = np.sum(p * action_probs, axis=1)
     # using law of total variance
     evpv = np.sum((p * (1 - p)) * action_probs, axis=1)
@@ -50,7 +58,7 @@ def compute_baseline(sample_users, item_vectors, null_actions, null_rewards, con
 
 def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, null_rewards, n_observation, num_iter,
                   est='CME'):
-    null_action_vec = item_vectors[null_actions]
+    null_action_vec = null_policy_weight[null_actions]
 
     # decide which estimator to use
     if est == 'Direct':
@@ -80,7 +88,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, 
 
         target_actions, target_action_probs = policy_grad.act(sample_users)
         target_actions = target_actions.nonzero()[2]
-        target_action_vec = item_vectors[target_actions]
+        target_action_vec = null_policy_weight[target_actions]
 
         train_actions = null_actions
         # estimation
@@ -100,10 +108,10 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, 
             target_reward_vec = estimator.estimate(sample_users, target_action_vec)
 
         target_reward = target_reward_vec.mean()
-        expected_reward, var_reward = get_expected_var_reward(item_vectors, target_action_probs, sample_users)
+        expected_reward = get_greedy_reward(item_vectors, target_actions, sample_users).mean()
         target_pred_rewards.append(target_reward)
         target_exp_rewards.append(expected_reward)
-        target_var_rewards.append(var_reward / n_observation)
+        target_var_rewards.append(0.0)
 
         loss = policy_grad.train_step(sample_users, train_actions, target_reward_vec)
 
@@ -114,13 +122,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, 
 
     sess.close()
 
-    optimal_actions = np.argmax(sample_users[:, :-1].dot(item_vectors[:, :-1].T) +
-                                sample_users[:, -1, np.newaxis] + item_vectors[:, -1], axis=1)
-    optimal_action_probs = np.zeros((optimal_actions.shape[0], config['n_items']))
-    optimal_action_probs[np.arange(optimal_actions.shape[0]), optimal_actions] = 1
-    optimal_reward, _ = get_expected_var_reward(item_vectors, optimal_action_probs, sample_users)
-
-    return target_exp_rewards, target_var_rewards, target_pred_rewards, optimal_reward
+    return target_exp_rewards, target_var_rewards, target_pred_rewards
 
 
 ### SIMULATION STARTS HERE ###
@@ -130,10 +132,14 @@ np.random.seed(123)
 user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
 item_components = np.random.choice(5, size=config['n_items'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
 
-mu_users = np.array([1, -1, 1, -0.5, 0])
-sd_users = np.array([1, 1.5, 0.5, 0.2, 2])
-mu_items = np.array([0, 1, -0.5, 1, -1])
-sd_items = np.array([1, 0.4, 1, 1, 0.5])
+# mu_users = np.array([1, -1, 1, -0.5, 0])
+mu_users = np.random.uniform(-1.0, 1.0, size=5)
+# sd_users = np.array([1, 1.5, 0.5, 0.2, 2])
+sd_users = np.random.uniform(0.25, 1.5, size=5)
+# mu_items = np.array([0, 1, -0.5, 1, -1])
+mu_items = np.random.uniform(-1.0, 1.0, size=5)
+sd_items = np.random.uniform(0.25, 1.5, size=5)
+# sd_items = np.array([1, 0.4, 1, 1, 0.5])
 
 user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'] + 1)) \
                * sd_users[user_components, np.newaxis] + mu_users[user_components, np.newaxis]
@@ -142,34 +148,50 @@ item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context
 
 # item_vectors[:, -1] = 0.0
 
+# user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
+item_components = np.random.choice(5, size=config['n_items'], p=(0.1, 0.5, 0.2, 0.1, 0.1), replace=True)
 # create random null policy
-mu_items = np.array([-1, 1, 2, -1, -2])
-sd_items = np.array([1, 0.4, 2, 1, 0.5])
+mu_items = np.array([-1, 1, 1, -1, -1.5])
+# mu_items = -2*np.abs(mu_items)
+sd_items = np.random.uniform(0.25, 1.25, size=5)
 null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
-               * sd_items[item_components, np.newaxis] + mu_items[item_components, np.newaxis]
+                     * sd_items[item_components, np.newaxis] + mu_items[item_components, np.newaxis]
 
 # create null policy which is different from the optimal policy
 # null_policy_weight = -.3 * item_vectors
 
-num_iter = 250
+num_iter = 300
 estimators = ['CME', 'Direct']
 exp_rewards = np.zeros((len(estimators), num_iter))
 pred_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
+
+def check_action_dist(actions):
+    return pd.DataFrame(actions, columns=['action']).groupby('action').size().reset_index(name='c_act')
 
 for n_obs in [5000]:
     sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
     null_action_probs = softmax(sample_users[:, :-1].dot(null_policy_weight.T) + \
                                 sample_users[:, -1, np.newaxis], axis=1)
     null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
-    null_action_vec = item_vectors[null_actions]
-    null_rewards = np.random.binomial(1, p=sigmoid(
-        np.sum(sample_users[:, :-1] * null_action_vec, axis=1) +
-        sample_users[:, -1]))
+    null_action_dist = check_action_dist(null_actions)
+    null_rewards = get_greedy_reward(item_vectors, null_actions, sample_users)
+
+    optimal_actions = np.argmax(sample_users[:, :-1].dot(item_vectors.T) +
+                                sample_users[:, -1, np.newaxis], axis=1)
+    optimal_action_dist = check_action_dist(optimal_actions)
+    optimal_rewards = get_greedy_reward(item_vectors, optimal_actions, sample_users)
+
     baseline_reward = compute_baseline(sample_users, item_vectors, null_actions, null_rewards, config)
 
+    action_dist = pd.merge(null_action_dist, optimal_action_dist, how='outer', on='action').fillna(0)
+    action_dist['c_act_x'] = action_dist['c_act_x']/action_dist['c_act_x'].sum()
+    action_dist['c_act_y'] = action_dist['c_act_y']/action_dist['c_act_y'].sum()
+
+    corr = np.corrcoef(item_vectors)
+
     for i in range(len(estimators)):
-        exp_rewards[i], var_rewards[i], pred_rewards[i], optimal_reward = \
+        exp_rewards[i], var_rewards[i], pred_rewards[i] = \
             run_iteration(sample_users,
                           item_vectors,
                           null_policy_weight,
@@ -182,7 +204,7 @@ for n_obs in [5000]:
     plot_comparison_result(exp_rewards,
                            pred_rewards,
                            var_rewards,
-                           optimal_reward,
+                           optimal_rewards.mean(),
                            baseline_reward,
                            "policy_optimization/_result/compare_est_n_obs_{}.pdf".format(n_obs),
                            "Comparison",

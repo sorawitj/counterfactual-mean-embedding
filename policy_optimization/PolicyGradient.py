@@ -22,6 +22,8 @@ class PolicyGradientAgent(object):
         self.action_probs = tf.nn.softmax(self.logits)
 
         self._action_dist = tf.distributions.Multinomial(total_count=1., probs=self.action_probs)
+        self._max_action = tf.argmax(self.logits, axis=1)
+        self._max_action_prob = tf.one_hot(self._max_action, depth=config['n_items'])
 
         # get log probabilities
         self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-10)
@@ -45,6 +47,8 @@ class PolicyGradientAgent(object):
         # get one action, by sampling
         return self._s.run([self._action_dist.sample(1), self.action_probs],
                            feed_dict={self._input: sample_users})
+        # return self._s.run([self._max_action, self._max_action_prob],
+        #                    feed_dict={self._input: sample_users})
 
     def train_step(self, obs, acts, reward):
         batch_feed = {self._input: obs,
