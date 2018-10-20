@@ -11,20 +11,21 @@ from ParameterSelector import *
 from PolicyGradient import *
 from plot_fn import *
 import numpy as np
+from sklearn.metrics.pairwise import polynomial_kernel
 
 config = {
-    "n_users": 200,
+    "n_users": 50,
     "n_items": 20,
-    "context_dim": 10,
+    "context_dim": 30,
     'learning_rate': 0.01
 }
-
+np.random.seed(123)
 
 def get_greedy_reward(item_vectors, actions, sample_users):
     action_vec = item_vectors[actions]
-    rewards = np.random.binomial(1, p=sigmoid(
-        .5 * (np.sum(sample_users[:, :-1] * action_vec, axis=1) +
-              sample_users[:, -1])))
+    poly_kernel = (np.sum(sample_users[:, :-1] * action_vec, axis=1) + 0.1)**3
+    p = sigmoid(.3 * (poly_kernel))
+    rewards = np.random.binomial(1, p)
     return rewards
 
 
@@ -58,7 +59,7 @@ def compute_baseline(sample_users, item_vectors, null_actions, null_rewards, con
 
 def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, null_rewards, n_observation, num_iter,
                   est='CME'):
-    null_action_vec = null_policy_weight[null_actions]
+    null_action_vec = item_vectors[null_actions]
 
     # decide which estimator to use
     if est == 'Direct':
@@ -88,7 +89,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, 
 
         target_actions, target_action_probs = policy_grad.act(sample_users)
         target_actions = target_actions.nonzero()[2]
-        target_action_vec = null_policy_weight[target_actions]
+        target_action_vec = item_vectors[target_actions]
 
         train_actions = null_actions
         # estimation
@@ -127,8 +128,6 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, null_actions, 
 
 ### SIMULATION STARTS HERE ###
 
-np.random.seed(123)
-
 user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
 item_components = np.random.choice(5, size=config['n_items'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
 
@@ -141,6 +140,9 @@ mu_items = np.random.uniform(-1.0, 1.0, size=5)
 sd_items = np.random.uniform(0.25, 1.5, size=5)
 # sd_items = np.array([1, 0.4, 1, 1, 0.5])
 
+def gen_cov_matrix():
+    np.random.uniform(0, 1)
+
 user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'] + 1)) \
                * sd_users[user_components, np.newaxis] + mu_users[user_components, np.newaxis]
 item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
@@ -151,8 +153,8 @@ item_vectors = np.random.normal(0, 1.0, size=(config['n_items'], config['context
 # user_components = np.random.choice(5, size=config['n_users'], p=(0.3, 0.1, 0.3, 0.1, 0.2), replace=True)
 item_components = np.random.choice(5, size=config['n_items'], p=(0.1, 0.5, 0.2, 0.1, 0.1), replace=True)
 # create random null policy
-mu_items = np.array([-1, 1, 1, -1, -1.5])
-# mu_items = -2*np.abs(mu_items)
+# mu_items = np.array([-1, 1, 1, -1, -1.5])
+mu_items = -1*mu_items
 sd_items = np.random.uniform(0.25, 1.25, size=5)
 null_policy_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim'])) \
                      * sd_items[item_components, np.newaxis] + mu_items[item_components, np.newaxis]
@@ -187,6 +189,8 @@ for n_obs in [5000]:
     action_dist = pd.merge(null_action_dist, optimal_action_dist, how='outer', on='action').fillna(0)
     action_dist['c_act_x'] = action_dist['c_act_x']/action_dist['c_act_x'].sum()
     action_dist['c_act_y'] = action_dist['c_act_y']/action_dist['c_act_y'].sum()
+
+    print(action_dist)
 
     corr = np.corrcoef(item_vectors)
 
