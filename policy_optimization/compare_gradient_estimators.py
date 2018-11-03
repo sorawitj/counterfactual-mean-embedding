@@ -16,21 +16,18 @@ config = {
     "n_users": 100,
     "n_items": 10,
     "context_dim": 10,
-    'learning_rate': 0.02
+    'learning_rate': 0.01
 }
 
-np.random.seed(321)
+np.random.seed(123)
 
 
-# actions = optimal_actions
-# actions = baseline_actions
 def get_greedy_reward_prob(true_weights,
                            actions,
                            sample_users):
     action_vec = true_weights[actions]
-    interaction = np.sum(sample_users[:, :-1] * action_vec, axis=1) / \
-                  np.sqrt(np.linalg.norm(sample_users[:, :-1], axis=1) * np.linalg.norm(action_vec, axis=1))
-    p = sigmoid(interaction + .5 * sample_users[:, -1])
+    interaction = np.sum(sample_users[:, :-1] * action_vec, axis=1)
+    p = sigmoid(.5 * interaction + 1. * sample_users[:, -1])
     return p
 
 
@@ -96,7 +93,7 @@ def run_iteration(sample_users,
     policy_grad_graph = tf.Graph()
     sess = tf.Session(graph=policy_grad_graph)
     with policy_grad_graph.as_default():
-        policy_grad = PolicyGradientAgent(config, sess, null_weights.T)
+        policy_grad = PolicyGradientAgent(config, sess)
         sess.run(tf.global_variables_initializer())
 
     for i in range(num_iter):
@@ -157,7 +154,7 @@ true_weights = np.random.normal(0, 1.0, size=(config['n_items'], config['context
 null_weights = np.random.normal(0, 3.0, size=(config['n_items'], config['context_dim']))
 
 num_iter = 300
-estimators = ['CME', 'Direct', 'wIPS']
+estimators = ['Direct', 'CME', 'wIPS']
 exp_rewards = np.zeros((len(estimators), num_iter))
 pred_rewards = np.zeros((len(estimators), num_iter))
 var_rewards = np.zeros((len(estimators), num_iter))
@@ -167,7 +164,7 @@ def check_action_dist(actions):
     return pd.DataFrame(actions, columns=['action']).groupby('action').size().reset_index(name='c_act')
 
 
-for n_obs in [5000]:
+for n_obs in [6000]:
     sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
     null_action_probs = softmax(sample_users[:, :-1].dot(null_weights.T), axis=1)
     null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))
@@ -196,8 +193,6 @@ for n_obs in [5000]:
     action_dist['c_act_y'] = action_dist['c_act_y'] / action_dist['c_act_y'].sum()
 
     print(action_dist)
-
-    corr = np.corrcoef(item_vectors)
 
     for i in range(len(estimators)):
         exp_rewards[i], var_rewards[i], pred_rewards[i] = \

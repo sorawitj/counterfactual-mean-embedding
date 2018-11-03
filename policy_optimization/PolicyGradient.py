@@ -26,7 +26,7 @@ class PolicyGradientAgent(object):
         self._max_action_prob = tf.one_hot(self._max_action, depth=config['n_items'])
 
         # get log probabilities
-        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-10)
+        self.log_prob = tf.log(tf.nn.softmax(self.logits) + 1e-20)
 
         # training part of graph
         self._acts = tf.placeholder(tf.int32)
