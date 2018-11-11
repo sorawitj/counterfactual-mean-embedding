@@ -15,15 +15,12 @@ config = {
     "n_users": 100,
     "n_items": 10,
     "context_dim": 10,
-    'learning_rate': 0.01
+    'learning_rate': 0.1
 }
 
 
-def get_result(seed1, seed2):
-    np.random.seed(seed1)
-    init_weight = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
-
-    np.random.seed(seed2)
+def get_result(seed):
+    np.random.seed(seed)
 
     def get_greedy_reward_prob(true_weights,
                                actions,
@@ -157,7 +154,7 @@ def get_result(seed1, seed2):
     init_weight = null_weights + np.random.normal(0, .5, size=(config['n_items'], config['context_dim']))
 
     num_iter = 300
-    estimators = ['CME', 'Direct' , 'wIPS']
+    estimators = ['CME', 'Direct', 'wIPS']
     exp_rewards = np.zeros((len(estimators), num_iter))
     pred_rewards = np.zeros((len(estimators), num_iter))
     var_rewards = np.zeros((len(estimators), num_iter))
@@ -212,13 +209,12 @@ def get_result(seed1, seed2):
                                var_rewards,
                                optimal_rewards,
                                baseline_reward,
-                               "policy_optimization/_result/{0}random_init(s{1})_obs_{2}.pdf".format(seed2, seed1, n_obs),
+                               "policy_optimization/_result/{0}random_init_obs_{1}.pdf".format(seed, n_obs),
                                "Comparison",
                                estimators)
 
 
 if __name__ == "__main__":
-    seeds = np.random.choice(100, 1, replace=False)
-    seed2 = 111
-    for seed1 in seeds:
-        get_result(seed1, seed2)
+    seeds = np.random.choice(100, 10, replace=False)
+    for seed in seeds:
+        get_result(seed)
