@@ -4,12 +4,11 @@ sys.path.append("../policy_evaluation/")
 
 from CME import *
 from wIPS import *
-from DR import *
+from DirectClassification import *
 
-from ParameterSelector import *
 from PolicyGradient import *
 from plot_fn import *
-import numpy as np
+from Utils import *
 
 config = {
     "n_users": 100,
@@ -27,7 +26,7 @@ def get_result(seed):
                                sample_users):
         action_vec = true_weights[actions]
         interaction = np.sum(sample_users[:, :-1] * action_vec, axis=1)
-        p = sigmoid(.5 * interaction + 1. * sample_users[:, -1])
+        p = sigmoid(1.0 * interaction + 1. * sample_users[:, -1])
         return p
 
     # def get_expected_var_reward(item_vectors, action_probs, sample_users):
@@ -48,7 +47,7 @@ def get_result(seed):
                          config):
         null_action_vec = item_vectors[null_actions]
         ## Baseline Direct Value estimation
-        baseline_estimator = Direct(np.hstack([sample_users, null_action_vec]), null_rewards)
+        baseline_estimator = DirectClassification(np.hstack([sample_users, null_action_vec]), null_rewards)
         baseline_rewards = np.zeros(shape=(sample_users.shape[0], item_vectors.shape[0]))
         for action in range(config['n_items']):
             target_action_vec = item_vectors[np.repeat(action, sample_users.shape[0])]
@@ -72,7 +71,7 @@ def get_result(seed):
         # decide which estimator to use
         if est == 'Direct':
             null_feature_vec = np.hstack([sample_users, null_action_vec])
-            estimator = Direct(null_feature_vec, null_rewards)
+            estimator = DirectClassification(null_feature_vec, null_rewards)
         elif est == 'wIPS':
             estimator = wIPS(null_action_probs[np.arange(len(sample_users)), null_actions], null_rewards)
         elif est == 'DR':
@@ -142,8 +141,10 @@ def get_result(seed):
     mu_users = np.random.uniform(-3.0, 3.0, size=6)
     sd_users = np.repeat(1.0, 6)
 
-    user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'] + 1)) \
-                   * sd_users[user_components, np.newaxis] + mu_users[user_components, np.newaxis]
+    # user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'] + 1)) \
+    #                * sd_users[user_components, np.newaxis] + mu_users[user_components, np.newaxis]
+
+    user_vectors = np.random.normal(0, 1.0, size=(config['n_users'], config['context_dim'] + 1))
 
     with tf.Graph().as_default():
         with tf.Session() as sess:
@@ -151,7 +152,7 @@ def get_result(seed):
 
     true_weights = np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
     null_weights = np.random.normal(0, 3.0, size=(config['n_items'], config['context_dim']))
-    init_weight = null_weights + np.random.normal(0, .5, size=(config['n_items'], config['context_dim']))
+    init_weight = null_weights + np.random.normal(0, 1.0, size=(config['n_items'], config['context_dim']))
 
     num_iter = 300
     estimators = ['CME', 'Direct', 'wIPS']
@@ -162,7 +163,7 @@ def get_result(seed):
     def check_action_dist(actions):
         return pd.DataFrame(actions, columns=['action']).groupby('action').size().reset_index(name='c_act')
 
-    for n_obs in [6000]:
+    for n_obs in [5000]:
         sample_users = user_vectors[np.random.choice(user_vectors.shape[0], n_obs, True), :]
         null_action_probs = softmax(sample_users[:, :-1].dot(null_weights.T), axis=1)
         null_actions = np.array(list(map(lambda x: np.random.choice(a=len(x), p=x), null_action_probs)))

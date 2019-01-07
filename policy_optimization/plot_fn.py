@@ -2,6 +2,9 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import colorConverter as cc
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors as mcolors
+
+mcolors.BASE_COLORS
 
 
 def plot_mean_and_CI(mean, lb, ub, color_mean=None, color_shading=None):
@@ -87,7 +90,8 @@ def plot_comparison_result(target_exp_rewards,
                            baseline_reward,
                            save_name,
                            plot_title,
-                           plot_legends):
+                           plot_legends,
+                           ylim=(0.1, 1)):
     # generate sets of random means and confidence intervals to plot
     mu = np.array(target_exp_rewards)
     pred = np.array(pred_rewards)
@@ -111,7 +115,7 @@ def plot_comparison_result(target_exp_rewards,
     plt.plot(baseline_mean, 'black')
 
     bg = np.array([1, 1, 1])  # background of the legend is white
-    colors = ['blue', 'green', 'cyan', 'magenta']
+    colors = ['blue', 'green', 'cyan', 'magenta', 'yellow', 'peru', 'plum', 'slategray']
     # with alpha = .5, the faded color is the average of the background and color
     colors_faded = [(np.array(cc.to_rgb(color)) + bg) / 2.0 for color in colors]
 
@@ -150,13 +154,18 @@ def plot_comparison_result(target_exp_rewards,
                    0: LegendObject(colors[0], colors_faded[0]),
                    1: LegendObject(colors[1], colors_faded[1]),
                    2: LegendObject(colors[2], colors_faded[2]),
-                   3: LegendObject(colors[3], colors_faded[3], dashed=True),
+                   3: LegendObject(colors[3], colors_faded[3]),
+                   4: LegendObject(colors[4], colors_faded[4]),
+                   5: LegendObject(colors[5], colors_faded[5]),
+                   6: LegendObject(colors[6], colors_faded[6]),
+                   7: LegendObject(colors[7], colors_faded[7]),
                })
 
     plt.title(plot_title)
     plt.xlabel('number of iterations')
-    plt.ylim(0.2, 1.0)
+    plt.ylim(ylim)
     plt.tight_layout()
     plt.grid()
     plt.show()
     fig.savefig(save_name)
+    plt.close()

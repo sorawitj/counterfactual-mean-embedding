@@ -1,7 +1,7 @@
 import sys
 
 from CME import *
-from Direct import *
+from DirectClassification import *
 from wIPS import *
 from DR import *
 
@@ -39,7 +39,7 @@ def run_iteration(sample_users, item_vectors, null_policy_weight, n_observation,
     # decide which estimator to use
     if est == 'Direct':
         null_feature_vec = np.hstack([sample_users, null_action_vec])
-        estimator = Direct(null_feature_vec, null_rewards)
+        estimator = DirectClassification(null_feature_vec, null_rewards)
     elif est == 'wIPS':
         estimator = wIPS(null_action_probs[np.arange(len(sample_users)), null_actions], null_rewards)
     elif est == 'DR':

@@ -1,7 +1,7 @@
-from Direct import *
+from DirectClassification import *
 
 
-class DR(Direct):
+class DR(DirectClassification):
 
     def __init__(self, null_feature_vec, null_propensity, null_reward, params=(40, 1024, 200)):
         super().__init__(null_feature_vec, null_reward, params)

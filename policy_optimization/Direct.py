@@ -1,5 +1,7 @@
-from ParameterSelector import *
 import numpy as np
+import tensorflow as tf
+
+from Utils import FastPredict
 
 
 class Direct(object):

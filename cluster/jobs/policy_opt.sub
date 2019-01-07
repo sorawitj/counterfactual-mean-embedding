@@ -1,0 +1,9 @@
+executable = /usr/bin/python3
+arguments = /home/sorawit/counterfactual-mean-embedding/policy_optimization/gaussian_policy_sim.py $(Process)
+error = run.err
+output = run.out
+log = run.log
+request_memory = 5048
+request_cpus = 10
+request_gpus = 0
+queue 8

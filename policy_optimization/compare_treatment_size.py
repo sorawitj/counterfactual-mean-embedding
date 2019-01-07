@@ -3,7 +3,7 @@ import sys
 sys.path.append("../policy_evaluation/")
 
 from CME import *
-from Direct import *
+from DirectClassification import *
 from wIPS import *
 from DR import *
 
@@ -45,7 +45,7 @@ def run_iteration(user_item_vectors, true_weights, null_policy_weight, n_observa
 
     # decide which estimator to use
     if est == 'Direct':
-        estimator = Direct(null_feature_vec, null_rewards)
+        estimator = DirectClassification(null_feature_vec, null_rewards)
     elif est == 'wIPS':
         estimator = wIPS(null_action_probs[np.arange(len(sample_users)), null_actions], null_rewards)
     elif est == 'DR':

@@ -1,8 +1,4 @@
-from ParameterSelector import *
 import numpy as np
-import pandas as pd
-from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
-
 
 class wIPS(object):
 
