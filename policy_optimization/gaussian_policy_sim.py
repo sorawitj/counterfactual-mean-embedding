@@ -1,12 +1,10 @@
-import argparse
 import sys
 from functools import partial
 
-import numpy as np
 from PolicyGradient import *
 from CME import *
 from DirectClassification import *
-from plot_fn import plot_comparison_result
+
 import multiprocessing
 import pandas as pd
 
@@ -54,8 +52,11 @@ def cross_validate_CME(reg_pows, context, null_actions, null_rewards, n_splits=5
     return reg_pows[min_idx], mean_errors[min_idx]
 
 
-def get_rewards(action, context, true_w):
-    true_mean = context.dot(true_w)
+def get_rewards(action, context, true_w, noise=False):
+    if noise:
+        true_mean = context.dot(true_w) + rand_state.normal(scale=1.)
+    else:
+        true_mean = context.dot(true_w)
     return np.exp(-0.5 * ((true_mean - action) ** 2))
 
 
@@ -105,15 +106,16 @@ def run_iteration(context,
         target_pred_rewards.append(target_reward)
         target_exp_rewards.append(expected_reward)
 
-        loss = policy_grad.train_step(context,
-                                      train_actions,
-                                      target_reward_vec,
-                                      learning_rates[i])
+        loss, weights = policy_grad.train_step(context,
+                                               train_actions,
+                                               target_reward_vec,
+                                               learning_rates[i])
 
         if i % 20 == 0:
             print("iter {}, Expected reward: {}".format(i, expected_reward))
             print("iter {}, Predicted reward: {}".format(i, target_reward))
             print("iter {}, loss: {}".format(i, loss))
+            print("iter {}, weights: {}".format(i, weights.ravel()))
 
     sess.close()
 
@@ -121,11 +123,12 @@ def run_iteration(context,
 
 
 if __name__ == "__main__":
+
     config = {
-        "context_dim": 3,
+        "context_dim": 2,
         'num_iter': 600,
-        'n_obs': 5000,
-        'scale': 1.0
+        'n_obs': 3000,
+        'scale': 0.2
     }
 
     try:
@@ -137,9 +140,9 @@ if __name__ == "__main__":
     rand_state = np.random.RandomState(111)
 
     p_component = (0.2, 0.3, 0.1, 0.3, 0.1)
-    mu_component = rand_state.uniform(-2.0, 2.0, size=6)
-    # mu_component = rand_state.uniform(0, 0, size=6)
-    sd_component = np.repeat(1.0, 6)
+    # mu_component = rand_state.uniform(-1.0, 1.0, size=6)
+    mu_component = rand_state.uniform(0, 0, size=6)
+    sd_component = np.repeat(1., 6)
 
     context = np.zeros(shape=(config['n_obs'], config['context_dim']))
     for i in range(config['n_obs']):
@@ -149,16 +152,18 @@ if __name__ == "__main__":
                      mu_component[
                          context_components, np.newaxis]
 
-    true_w = rand_state.normal(size=config['context_dim'], scale=config['scale'])
+    true_w = rand_state.normal(size=config['context_dim'], scale=1.)
 
-    null_w = rand_state.normal(size=config['context_dim'], scale=config['scale'])
-    # null_w = -true_w
+    null_w = rand_state.normal(size=config['context_dim'], scale=1.)
+
+    print("true weight: {}".format(true_w))
+    print("null_w weight: {}".format(null_w))
 
     null_mu = context.dot(null_w)
-    null_actions = rand_state.normal(null_mu, scale=1.)
-    null_rewards = get_rewards(null_actions, context, true_w)
+    null_actions = rand_state.normal(null_mu, scale=config['scale'])
+    null_rewards = get_rewards(null_actions, context, true_w, noise=False)
 
-    # reg_pows = [-3, -2, -1, 0, 1, 2, 3]
+    reg_pow_idx = 1
     reg_pows = [-2, -1.5, -1, 0, 1, 1.5, 2]
     if reg_pow_idx <= 6:
         estimator = 'CME'
@@ -185,7 +190,7 @@ if __name__ == "__main__":
     res_df.columns = ['exp_reward', 'pred_reward']
     res_df['optimal_reward'] = optimal_rewards.mean()
 
-    dir_path = 'policy_opt_results/complex_direct/'
+    dir_path = '_policy_opt_results/direct_test/'
     if estimator == 'CME':
         file_name = dir_path + 's' + str(config['scale']) + 'n' + str(config['n_obs']) + 'd' + str(
             config['context_dim']) + \
@@ -196,38 +201,3 @@ if __name__ == "__main__":
                     estimator + '.csv'
 
     res_df.to_csv(file_name, index=False)
-
-    ndim = 3
-    n_obs = 5000
-    scale = 1.0
-    n_iters = 600
-    exp_rewards = np.zeros(shape=(len(reg_pows) + 1, n_iters))
-    pred_rewards = np.zeros(shape=(len(reg_pows) + 1, n_iters))
-    optimal_rewards = np.zeros(shape=(len(reg_pows) + 1, n_iters))
-    estimators = []
-    dir_path = 'policy_opt_results/complex_direct/'
-    for i in range(len(reg_pows)):
-        df = pd.read_csv(dir_path + 's{}n{}d{}CME_'.format(scale, n_obs, ndim) + str(reg_pows[i]) + '.csv')
-        exp_rewards[i] = df['exp_reward']
-        pred_rewards[i] = df['pred_reward']
-        optimal_rewards[i] = df['optimal_reward'].mean()
-        estimators.append('CME_reg_' + str(reg_pows[i]))
-
-    df = pd.read_csv(dir_path + 's{}n{}d{}Direct.csv'.format(scale, n_obs, ndim))
-    exp_rewards[len(reg_pows)] = df['exp_reward']
-    pred_rewards[len(reg_pows)] = df['pred_reward']
-    optimal_rewards[len(reg_pows)] = df['optimal_reward'].mean()
-    estimators.append('Direct')
-
-    var_rewards = np.zeros(n_iters)
-    pred_rewards = np.zeros(shape=pred_rewards.shape)
-
-    plot_comparison_result(exp_rewards,
-                           pred_rewards,
-                           var_rewards,
-                           optimal_rewards.mean(),
-                           0.0,
-                           "policy_optimization/_result/guassian_policy_d{}.pdf".format(ndim),
-                           "CME vs Direct: context_dim = {}".format(ndim),
-                           estimators,
-                           ylim=(0.01, 0.75))

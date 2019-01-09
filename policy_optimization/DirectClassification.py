@@ -48,7 +48,7 @@ class DirectClassification(object):
 
 class DirectRegression(object):
 
-    def __init__(self, null_feature_vec, null_reward, params=(200, 1024, 1000)):
+    def __init__(self, null_feature_vec, null_reward, params=(50, 1024, 100)):
         self.null_feature_vec = null_feature_vec
         self.null_reward = null_reward
         self.params = params

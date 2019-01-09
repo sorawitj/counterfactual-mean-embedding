@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 
 
@@ -77,8 +79,12 @@ class PolicyGradientGaussian(object):
                                   units=1,
                                   activation=None,
                                   use_bias=False,
-                                  kernel_initializer=w_initializer)
+                                  kernel_initializer=w_initializer,
+                                  name='weight')
         self.mu = tf.squeeze(self.mu)
+
+        with tf.variable_scope('weight', reuse=True):
+            self.weights = tf.get_variable('kernel')
 
         self.action_dist = tf.distributions.Normal(self.mu, 1.0)
 
@@ -107,5 +113,5 @@ class PolicyGradientGaussian(object):
                       self._acts: acts,
                       self._rewards: reward,
                       self.learning_rate: learning_rate}
-        _, loss = self._s.run([self._train, self.loss], feed_dict=batch_feed)
-        return loss
+        _, loss, weights = self._s.run([self._train, self.loss, self.weights], feed_dict=batch_feed)
+        return loss, weights
