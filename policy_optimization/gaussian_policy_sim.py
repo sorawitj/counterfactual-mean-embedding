@@ -16,7 +16,7 @@ def run_cme_reg(reg_pow, train_context, test_context, train_action, train_reward
     return np.square(estiamted_reward - test_reward)
 
 
-def cross_validate_CME(reg_pows, context, null_actions, null_rewards, n_splits=5):
+def cross_validate_CME(reg_pows, context, null_actions, null_rewards, n_splits=3):
     N = null_actions.shape[0]
     n_params = len(reg_pows)
     # random split corss validation set
@@ -86,7 +86,7 @@ def run_iteration(context,
         policy_grad = PolicyGradientGaussian(config, sess, null_w)
         sess.run(tf.global_variables_initializer())
 
-    learning_rates = np.logspace(np.log2(0.2), np.log2(0.02), config['num_iter'], base=2)
+    learning_rates = np.logspace(np.log2(0.1), np.log2(0.01), config['num_iter'], base=2)
 
     for i in range(config['num_iter']):
 
@@ -125,17 +125,17 @@ def run_iteration(context,
 if __name__ == "__main__":
 
     config = {
-        "context_dim": 2,
-        'num_iter': 600,
+        "context_dim": 3,
+        'num_iter': 500,
         'n_obs': 3000,
         'scale': 0.2
     }
 
-    try:
-        # get an index of a multiplier as an argument
-        reg_pow_idx = int(sys.argv[1])
-    except:
-        sys.exit(1)
+    # try:
+    #     # get an index of a multiplier as an argument
+    #     reg_pow_idx = int(sys.argv[1])
+    # except:
+    #     sys.exit(1)
 
     rand_state = np.random.RandomState(111)
 
@@ -163,11 +163,17 @@ if __name__ == "__main__":
     null_actions = rand_state.normal(null_mu, scale=config['scale'])
     null_rewards = get_rewards(null_actions, context, true_w, noise=False)
 
-    reg_pow_idx = 1
-    reg_pows = [-2, -1.5, -1, 0, 1, 1.5, 2]
+    reg_pow_idx = 3
+    reg_pows = [-10, -8, -6, -4, -2, 0, 2]
+
+    # best_reg_pow, error = cross_validate_CME(reg_pows, context, null_actions, null_rewards)
+    # print(best_reg_pow)
+    # reg_pow = best_reg_pow
+
     if reg_pow_idx <= 6:
         estimator = 'CME'
         reg_pow = reg_pows[reg_pow_idx]
+        # reg_pow = best_reg_pow
     else:
         estimator = 'Direct'
         reg_pow = 0
@@ -190,7 +196,7 @@ if __name__ == "__main__":
     res_df.columns = ['exp_reward', 'pred_reward']
     res_df['optimal_reward'] = optimal_rewards.mean()
 
-    dir_path = '_policy_opt_results/direct_test/'
+    dir_path = '_policy_opt_results/regularization/'
     if estimator == 'CME':
         file_name = dir_path + 's' + str(config['scale']) + 'n' + str(config['n_obs']) + 'd' + str(
             config['context_dim']) + \

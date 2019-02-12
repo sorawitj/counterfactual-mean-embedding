@@ -158,7 +158,7 @@ def plot_comparison_result(target_exp_rewards,
                    4: LegendObject(colors[4], colors_faded[4]),
                    5: LegendObject(colors[5], colors_faded[5]),
                    6: LegendObject(colors[6], colors_faded[6]),
-                   7: LegendObject(colors[7], colors_faded[7]),
+                   7: LegendObject(colors[7], colors_faded[7])
                })
 
     plt.title(plot_title)

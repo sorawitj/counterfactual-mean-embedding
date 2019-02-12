@@ -43,7 +43,10 @@ class PolicyGradientAgent(object):
 
         # update + gradient clipping
         optimizer = tf.train.GradientDescentOptimizer(config['learning_rate'])
-        self._train = optimizer.minimize(self.loss)
+        gradients, variables = zip(*optimizer.compute_gradients(self.loss))
+        gradients, _ = tf.clip_by_global_norm(gradients, 1.0)
+        self._train = optimizer.apply_gradients(zip(gradients, variables))
+        # self._train = optimizer.minimize(self.loss)
 
     def act(self, sample_users):
         # get one action, by sampling
@@ -93,13 +96,16 @@ class PolicyGradientGaussian(object):
         self._rewards = tf.placeholder(tf.float32)
 
         # get log probs of actions from episode
-        self.act_prob = tf.log(self.action_dist.prob(self._acts) + 1e-30)
+        self.act_prob = tf.log(tf.clip_by_value(self.action_dist.prob(self._acts), 0.01, 10.0))
 
         # surrogate loss
         self.loss = -tf.reduce_mean(self.act_prob * self._rewards)
 
+        # update + gradient clipping
         optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
-        self._train = optimizer.minimize(self.loss)
+        gradients, variables = zip(*optimizer.compute_gradients(self.loss))
+        gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+        self._train = optimizer.apply_gradients(zip(gradients, variables))
 
     def act(self, sample_users):
         # get one action, by sampling
