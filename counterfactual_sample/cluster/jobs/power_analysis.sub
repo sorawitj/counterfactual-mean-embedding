@@ -1,0 +1,9 @@
+executable = /usr/bin/python3
+arguments = /home/sorawit/counterfactual_sample/experiment_power_analysis.py $(Process)
+error = run.err
+output = run.out
+log = run.log
+request_memory = 25600
+request_cpus = 12
+request_gpus = 0
+queue 5

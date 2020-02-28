@@ -38,4 +38,4 @@ ax = sns.pointplot(x="multiplier", y="MSE", hue="estimator", data=final_df)
 ax.set_yscale('log')
 ax.set_ylabel("Mean Square Error (log scale)")
 
-plt.savefig('prelim_result3.png')
+# plt.savefig('prelim_result3.png')
