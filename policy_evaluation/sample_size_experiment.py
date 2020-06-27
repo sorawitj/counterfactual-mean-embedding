@@ -148,15 +148,19 @@ if __name__ == "__main__":
     """ 
      Comparing between estimators
      """
-    estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
-                  SlateEstimator(config['n_reco'], null_policy),
-                  DirectEstimator(),
-                  DoublyRobustEstimator(config['n_reco'], null_policy, target_policy),
+    # estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
+    #               SlateEstimator(config['n_reco'], null_policy),
+    #               DirectEstimator(),
+    #               DoublyRobustEstimator(config['n_reco'], null_policy, target_policy),
+    #               CMEstimator(rbf_kernel, rbf_kernel, params)]
+
+    estimators = [DirectEstimator(),
+                  DirectKernelEstimator(),
                   CMEstimator(rbf_kernel, rbf_kernel, params)]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
     compare_df = joblib.Parallel(n_jobs=2, verbose=50)(
-        joblib.delayed(compare_estimators)(estimators, null_policy, target_policy, environment, item_vectors,
+        joblib.delayed(compare_kernel_regression)(estimators, null_policy, target_policy, environment, item_vectors,
                                            config, seeds[i]) for i in range(num_iter)
     )
     compare_df = pd.DataFrame(compare_df)

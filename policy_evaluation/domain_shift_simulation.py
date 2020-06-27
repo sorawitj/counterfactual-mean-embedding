@@ -12,6 +12,7 @@ import sys
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
+
 def simulate_data(null_policy, target_policy, environment, item_vectors):
     """
     simulate data given policy, environment and set of context
@@ -39,6 +40,7 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
 
     return observation
 
+
 def get_actual_reward(target_policy, environment, n=100000):
     sum_reward = 0
     for i in range(n):
@@ -47,6 +49,7 @@ def get_actual_reward(target_policy, environment, n=100000):
         sum_reward += environment.get_reward(user, target_reco)
 
     return sum_reward / float(n)
+
 
 def grid_search(params, estimator, sim_data, n_iterations):
     """
@@ -71,23 +74,23 @@ def grid_search(params, estimator, sim_data, n_iterations):
 
     return return_df
 
-def compare_estimators(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
 
+def compare_estimators(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
     np.random.seed(seed)
     sim_data = [simulate_data(null_policy, target_policy, environment, item_vectors)
                 for _ in range(config['n_observation'])]
     sim_data = pd.DataFrame(sim_data)
 
     # parameter selection
-    direct_selector = ParameterSelector(estimators[2]) # direct estimator
-    params_grid = [(n_hiddens,1024,100) for n_hiddens in [50,100,150,200]]
+    direct_selector = ParameterSelector(estimators[2])  # direct estimator
+    params_grid = [(n_hiddens, 1024, 100) for n_hiddens in [50, 100, 150, 200]]
     direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
     estimators[2] = direct_selector.estimator
 
-    estimators[3].params = direct_selector.parameters # doubly robust estimator
+    estimators[3].params = direct_selector.parameters  # doubly robust estimator
 
-    cme_selector = ParameterSelector(estimators[4]) # cme estimator
-    params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6,0,1)]
+    cme_selector = ParameterSelector(estimators[4])  # cme estimator
+    params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6, 0, 1)]
     cme_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
     estimators[4] = cme_selector.estimator
 
@@ -105,6 +108,7 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
 
     return estimated_values
 
+
 if __name__ == "__main__":
     config = {
         "n_users": 50,
@@ -117,7 +121,7 @@ if __name__ == "__main__":
     try:
         # get an index of a multiplier as an argument
         multiplier_index = int(sys.argv[1])
-        multiplier = -0.9 + float(sys.argv[1])*0.2
+        multiplier = -0.9 + float(sys.argv[1]) * 0.2
     except:
         sys.exit(1)
 
@@ -148,16 +152,19 @@ if __name__ == "__main__":
     """ 
      Comparing between estimators
      """
-    estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
-                  SlateEstimator(config['n_reco'], null_policy),
-                  DirectEstimator(),
-                  DoublyRobustEstimator(config['n_reco'], null_policy, target_policy),
+    # estimators = [IPSEstimator(config['n_reco'], null_policy, target_policy),
+    #               SlateEstimator(config['n_reco'], null_policy),
+    #               DirectEstimator(),
+    #               DoublyRobustEstimator(config['n_reco'], null_policy, target_policy),
+    #               CMEstimator(rbf_kernel, rbf_kernel, params)]
+    estimators = [DirectEstimator(),
+                  DirectKernelEstimator(),
                   CMEstimator(rbf_kernel, rbf_kernel, params)]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
-    compare_df = joblib.Parallel(n_jobs=5, verbose=50)(
-        joblib.delayed(compare_estimators)(estimators, null_policy, target_policy, environment, item_vectors,
-                                           config, seeds[i]) for i in range(num_iter)
+    compare_df = joblib.Parallel(n_jobs=2, verbose=50)(
+        joblib.delayed(compare_kernel_regression)(estimators, null_policy, target_policy, environment, item_vectors,
+                                                  config, seeds[i]) for i in range(num_iter)
     )
     compare_df = pd.DataFrame(compare_df)
     compare_df['multiplier'] = multiplier
