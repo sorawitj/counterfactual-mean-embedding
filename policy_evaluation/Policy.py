@@ -1,6 +1,5 @@
 from abc import abstractmethod
 
-import numpy as np
 import scipy
 from collections import defaultdict
 import itertools

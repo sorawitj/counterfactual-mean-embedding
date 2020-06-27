@@ -3,8 +3,6 @@ from joblib import Parallel, delayed
 import tensorflow as tf
 import pandas as pd
 
-from ParameterSelector import ParameterSelector
-
 
 def softmax(X, tau=1.0, axis=None):
     """
@@ -173,77 +171,3 @@ def example_input_fn(generator):
         return {'x': features}
 
     return _inner_input_fn
-
-
-def simulate_data(null_policy, target_policy, environment, item_vectors):
-    """
-    simulate data given policy, environment and set of context
-    :return: observations
-    """
-    user = environment.get_context()
-    null_reco, null_multinomial, null_user_vector = null_policy.recommend(user)
-    # recommendation is represented by a concatenation of recommended item vectors
-    # null_reco_vec = np.mean(item_vectors[null_reco], axis=0)
-    null_reco_vec = np.concatenate(item_vectors[null_reco])
-    null_reward = environment.get_reward(user, null_reco)
-
-    target_reco, target_multinomial, _ = target_policy.recommend(user)
-    # recommendation is represented by a concatenation of recommended item vectors
-    # target_reco_vec = np.mean(item_vectors[target_reco], axis=0)
-    target_reco_vec = np.concatenate(item_vectors[target_reco])
-    target_reward = environment.get_reward(user, target_reco)
-
-    observation = {"null_context_vec": null_user_vector, "target_context_vec": null_user_vector,
-                   "null_reco": tuple(null_reco),
-                   "null_reco_vec": null_reco_vec, "null_reward": null_reward,
-                   "target_reco": tuple(target_reco), "null_multinomial": null_multinomial,
-                   "target_multinomial": target_multinomial, "target_reco_vec": target_reco_vec,
-                   "target_reward": target_reward, "user": user}
-
-    return observation
-
-
-def get_actual_reward(target_policy, environment, n=100000):
-    sum_reward = 0
-    for i in range(n):
-        user = environment.get_context()
-        target_reco, target_multinomial, _ = target_policy.recommend(user)
-        sum_reward += environment.get_reward(user, target_reco)
-
-    return sum_reward / float(n)
-
-
-def compare_kernel_regression(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
-    np.random.seed(seed)
-    sim_data = [simulate_data(null_policy, target_policy, environment, item_vectors)
-                for _ in range(config['n_observation'])]
-    sim_data = pd.DataFrame(sim_data)
-
-    # parameter selection
-    direct_selector = ParameterSelector(estimators[0])  # direct estimator
-    params_grid = [(n_hiddens, 1024, 100) for n_hiddens in [50, 100, 150, 200]]
-    direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
-    estimators[0] = direct_selector.estimator
-
-    direct_selector = ParameterSelector(estimators[1])  # direct estimator
-    params_grid = [0.001, .01, .1, 1, 10]
-    direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
-    estimators[1] = direct_selector.estimator
-
-    cme_selector = ParameterSelector(estimators[2])  # cme estimator
-    params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6, 0, 1)]
-    cme_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
-    estimators[2] = cme_selector.estimator
-
-    actual_value = get_actual_reward(target_policy, environment)
-
-    estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
-    estimated_values['actual_value'] = actual_value
-    estimated_values['null_reward'] = sim_data.null_reward.mean()
-
-    for e in estimators:
-        estimated_values[e.name + '_square_error'] = \
-            (estimated_values[e.name] - estimated_values['actual_value']) ** 2
-    print(estimated_values)
-
-    return estimated_values

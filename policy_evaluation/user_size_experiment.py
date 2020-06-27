@@ -9,7 +9,6 @@ from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 import joblib
 import os
 import sys
-from Utils import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
@@ -109,6 +108,42 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
     return estimated_values
 
 
+def compare_kernel_regression(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
+    np.random.seed(seed)
+    sim_data = [simulate_data(null_policy, target_policy, environment, item_vectors)
+                for _ in range(config['n_observation'])]
+    sim_data = pd.DataFrame(sim_data)
+
+    # parameter selection
+    direct_selector = ParameterSelector(estimators[0])  # direct estimator
+    params_grid = [(n_hiddens, 1024, 100) for n_hiddens in [50, 100, 150, 200]]
+    direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
+    estimators[0] = direct_selector.estimator
+
+    direct_selector = ParameterSelector(estimators[1])  # direct estimator
+    params_grid = [0.001, .01, .1, 1, 10]
+    direct_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
+    estimators[1] = direct_selector.estimator
+
+    cme_selector = ParameterSelector(estimators[2])  # cme estimator
+    params_grid = [[(10.0 ** p) / config['n_observation'], 1.0, 1.0] for p in np.arange(-6, 0, 1)]
+    cme_selector.select_from_propensity(sim_data, params_grid, null_policy, target_policy)
+    estimators[2] = cme_selector.estimator
+
+    actual_value = get_actual_reward(target_policy, environment)
+
+    estimated_values = dict([(e.name, e.estimate(sim_data)) for e in estimators])
+    estimated_values['actual_value'] = actual_value
+    estimated_values['null_reward'] = sim_data.null_reward.mean()
+
+    for e in estimators:
+        estimated_values[e.name + '_square_error'] = \
+            (estimated_values[e.name] - estimated_values['actual_value']) ** 2
+    print(estimated_values)
+
+    return estimated_values
+
+
 if __name__ == "__main__":
 
     try:
@@ -164,7 +199,7 @@ if __name__ == "__main__":
                   CMEstimator(rbf_kernel, rbf_kernel, params)]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
-    compare_df = joblib.Parallel(n_jobs=2, verbose=50)(
+    compare_df = joblib.Parallel(n_jobs=1, verbose=50)(
         joblib.delayed(compare_kernel_regression)(estimators, null_policy, target_policy, environment, item_vectors,
                                                   config, seeds[i]) for i in range(num_iter)
     )
