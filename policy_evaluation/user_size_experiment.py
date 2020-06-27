@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
     result_df = pd.DataFrame()
     multiplier = -0.3
-    num_iter = 5
+    num_iter = 30
 
     user_vectors = np.random.normal(0, 1, size=(config['n_users'], config['context_dim']))
     target_user_vectors = user_vectors * np.random.binomial(1, 0.5, size=user_vectors.shape)
