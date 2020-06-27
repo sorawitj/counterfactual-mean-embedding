@@ -1,6 +1,4 @@
 from Environment import *
-from Estimator import *
-from Policy import *
 from ParameterSelector import *
 import numpy as np
 import pandas as pd
@@ -11,6 +9,7 @@ import os
 import sys
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 
 def simulate_data(null_policy, target_policy, environment, item_vectors):
     """
@@ -39,6 +38,7 @@ def simulate_data(null_policy, target_policy, environment, item_vectors):
 
     return observation
 
+
 def get_actual_reward(target_policy, environment, n=100000):
     sum_reward = 0
     for i in range(n):
@@ -47,6 +47,7 @@ def get_actual_reward(target_policy, environment, n=100000):
         sum_reward += environment.get_reward(user, target_reco)
 
     return sum_reward / float(n)
+
 
 def grid_search(params, estimator, sim_data, n_iterations):
     """
@@ -71,8 +72,8 @@ def grid_search(params, estimator, sim_data, n_iterations):
 
     return return_df
 
-def compare_estimators(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
 
+def compare_estimators(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
     np.random.seed(seed)
     sim_data = [simulate_data(null_policy, target_policy, environment, item_vectors)
                 for _ in range(config['n_observation'])]
@@ -103,6 +104,7 @@ def compare_estimators(estimators, null_policy, target_policy, environment, item
     print(estimated_values)
 
     return estimated_values
+
 
 def compare_kernel_regression(estimators, null_policy, target_policy, environment, item_vectors, config, seed):
     np.random.seed(seed)
@@ -139,11 +141,12 @@ def compare_kernel_regression(estimators, null_policy, target_policy, environmen
 
     return estimated_values
 
+
 if __name__ == "__main__":
 
     try:
         # get an index of a multiplier as an argument
-        sample_size = 500*int(sys.argv[1] + 1)
+        sample_size = 500 * (int(sys.argv[1]) + 1)
     except:
         sys.exit(1)
 
@@ -196,7 +199,7 @@ if __name__ == "__main__":
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
     compare_df = joblib.Parallel(n_jobs=1, verbose=50)(
         joblib.delayed(compare_kernel_regression)(estimators, null_policy, target_policy, environment, item_vectors,
-                                           config, seeds[i]) for i in range(num_iter)
+                                                  config, seeds[i]) for i in range(num_iter)
     )
     compare_df = pd.DataFrame(compare_df)
     compare_df['sample_size'] = sample_size
