@@ -199,7 +199,7 @@ if __name__ == "__main__":
                   CMEstimator(rbf_kernel, rbf_kernel, params)]
 
     seeds = np.random.randint(np.iinfo(np.int32).max, size=num_iter)
-    compare_df = joblib.Parallel(n_jobs=2, verbose=50)(
+    compare_df = joblib.Parallel(n_jobs=1, verbose=50)(
         joblib.delayed(compare_kernel_regression)(estimators, null_policy, target_policy, environment, item_vectors,
                                                   config, seeds[i]) for i in range(num_iter)
     )
