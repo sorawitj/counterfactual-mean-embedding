@@ -110,7 +110,8 @@ if __name__ == "__main__":
         # get an index of a multiplier as an argument
         context_dim = 5*(int(sys.argv[1])+1)
     except:
-        sys.exit(1)
+        # sys.exit(1)
+        context_dim = 5*(int(sys.argv[1])+1)
 
     config = {
         "n_users": 50,

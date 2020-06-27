@@ -11,6 +11,7 @@ from scipy.spatial.distance import pdist
 import tensorflow as tf
 from sklearn.metrics.pairwise import rbf_kernel, linear_kernel
 from scipy.stats.mstats import winsorize
+from sklearn.kernel_ridge import KernelRidge
 
 import joblib
 from sklearn.model_selection import StratifiedKFold
@@ -72,15 +73,15 @@ class DirectEstimator(Estimator):
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
-                       'reco_vec': np.stack(null_reco_vec.as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, null_reward.as_matrix(),
+        numpy_input = {'context_vec': np.stack(null_context_vec.to_numpy()),
+                       'reco_vec': np.stack(null_reco_vec.to_numpy())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, null_reward.to_numpy(),
                                                             batch_size=self.params[1], num_epochs=self.params[2],
                                                             shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
-        numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
-                       'reco_vec': np.stack(target_reco_vec.as_matrix())}
+        numpy_input = {'context_vec': np.stack(target_context_vec.to_numpy()),
+                       'reco_vec': np.stack(target_reco_vec.to_numpy())}
         pred_input_fn = tf.estimator.inputs.numpy_input_fn(numpy_input, batch_size=self.params[1], num_epochs=1,
                                                            shuffle=False)
         prediction = classifier.predict(pred_input_fn)
@@ -90,6 +91,56 @@ class DirectEstimator(Estimator):
             total_reward += p['logistic'][0]
             n += 1
         expReward = total_reward / n
+
+        return expReward
+
+
+class DirectKernelEstimator(Estimator):
+    @property
+    def name(self):
+        return "direct_kernel_estimator"
+
+    @property
+    def params(self):
+        return self._params
+
+    @params.setter
+    def params(self, value):
+        self._params = value
+
+    def __init__(self, params=None):
+        if params is None:
+            params = 1.
+        self.params = params
+
+    def estimate(self, sim_data):
+        sim_data = sim_data.copy()
+
+        null_context_vec = np.stack(sim_data['null_context_vec'].dropna(axis=0).to_numpy())
+        null_reco_vec = np.stack(sim_data['null_reco_vec'].dropna(axis=0).to_numpy())
+        target_context_vec = np.stack(sim_data['target_context_vec'].dropna(axis=0).to_numpy())
+        target_reco_vec = np.stack(sim_data['target_reco_vec'].dropna(axis=0).to_numpy())
+        null_reward = np.stack(sim_data['null_reward'].dropna(axis=0).to_numpy())
+
+        # use median heuristic for the bandwidth parameters
+        context_param = 0.5 / np.median(pdist(np.vstack([null_context_vec, target_context_vec]), 'sqeuclidean'))
+        recom_param = 0.5 / np.median(pdist(np.vstack([null_reco_vec, target_reco_vec]), 'sqeuclidean'))
+
+        trainContextMatrix = rbf_kernel(null_context_vec, null_context_vec, context_param)
+        trainRecomMatrix = rbf_kernel(null_reco_vec, null_reco_vec, recom_param)
+        trainMatrix = np.multiply(trainContextMatrix, trainRecomMatrix)
+
+        clf = KernelRidge(alpha=self.params, kernel='precomputed')
+
+        clf.fit(trainMatrix, null_reward)
+
+        testContextMatrix = rbf_kernel(target_context_vec, null_context_vec, context_param)
+        testRecomMatrix = rbf_kernel(target_reco_vec, null_reco_vec, recom_param)
+        testMatrix = np.multiply(testContextMatrix, testRecomMatrix)
+
+        prediction = clf.predict(testMatrix)
+
+        expReward = prediction.mean()
 
         return expReward
 
@@ -169,15 +220,15 @@ class DoublyRobustEstimator(IPSEstimator):
                                                 optimizer='Adam',
                                                 dropout=0.2)
 
-        null_numpy_input = {'context_vec': np.stack(null_context_vec.as_matrix()),
-                            'reco_vec': np.stack(null_reco_vec.as_matrix())}
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, null_reward.as_matrix(),
+        null_numpy_input = {'context_vec': np.stack(null_context_vec.to_numpy()),
+                            'reco_vec': np.stack(null_reco_vec.to_numpy())}
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, null_reward.to_numpy(),
                                                             batch_size=self.params[1], num_epochs=self.params[2],
                                                             shuffle=True)
         classifier.train(input_fn=train_input_fn)
 
-        target_numpy_input = {'context_vec': np.stack(target_context_vec.as_matrix()),
-                              'reco_vec': np.stack(target_reco_vec.as_matrix())}
+        target_numpy_input = {'context_vec': np.stack(target_context_vec.to_numpy()),
+                              'reco_vec': np.stack(target_reco_vec.to_numpy())}
 
         null_pred_input_fn = tf.estimator.inputs.numpy_input_fn(null_numpy_input, batch_size=self.params[1],
                                                                 num_epochs=1,
@@ -288,13 +339,14 @@ class CMEstimator(Estimator):
 
         null_reward = sim_data.null_reward.dropna(axis=0)
 
-        null_context_vec = np.stack(sim_data['null_context_vec'].dropna(axis=0).as_matrix())
-        null_reco_vec = np.stack(sim_data['null_reco_vec'].dropna(axis=0).as_matrix())
-        target_context_vec = np.stack(sim_data['target_context_vec'].dropna(axis=0).as_matrix())
-        target_reco_vec = np.stack(sim_data['target_reco_vec'].dropna(axis=0).as_matrix())
+        null_context_vec = np.stack(sim_data['null_context_vec'].dropna(axis=0).to_numpy())
+        null_reco_vec = np.stack(sim_data['null_reco_vec'].dropna(axis=0).to_numpy())
+        target_context_vec = np.stack(sim_data['target_context_vec'].dropna(axis=0).to_numpy())
+        target_reco_vec = np.stack(sim_data['target_reco_vec'].dropna(axis=0).to_numpy())
 
         # use median heuristic for the bandwidth parameters
-        context_param = (0.5 * context_param) / np.median(pdist(np.vstack([null_context_vec, target_context_vec]), 'sqeuclidean'))
+        context_param = (0.5 * context_param) / np.median(
+            pdist(np.vstack([null_context_vec, target_context_vec]), 'sqeuclidean'))
         recom_param = (0.5 * recom_param) / np.median(pdist(np.vstack([null_reco_vec, target_reco_vec]), 'sqeuclidean'))
 
         contextMatrix = self.context_kernel(null_context_vec, null_context_vec, context_param)

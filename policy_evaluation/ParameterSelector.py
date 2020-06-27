@@ -85,7 +85,7 @@ class ParameterSelector(object):
 
                 # evaluate the estimator on each split
                 validate_data = data.iloc[test]
-                validate_reward = data["null_reward"].iloc[test].as_matrix()
+                validate_reward = data["null_reward"].iloc[test].to_numpy()
 
                 nullProb = [null_policy.get_propensity(row.null_multinomial, row.null_reco) for _,row in validate_data.iterrows()]
                 if not target_policy.greedy:
