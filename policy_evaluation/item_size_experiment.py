@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     # The policy we use to generate sim data
     null_policy = MultinomialPolicy(item_vectors, null_user_vectors, config['n_items'], config['n_reco'],
-                                    temperature=0.5, cal_gamma=True)
+                                    temperature=0.5, cal_gamma=False)
 
     # The target policy
     target_policy = MultinomialPolicy(item_vectors, target_user_vectors, config['n_items'], config['n_reco'],
